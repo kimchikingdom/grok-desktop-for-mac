@@ -1,0 +1,12 @@
+{
+  "name": "@grok-desktop/security",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@grok-desktop/shared": "workspace:*"
+  }
+}

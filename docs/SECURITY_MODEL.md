@@ -1,0 +1,89 @@
+# Grok Desktop 보안 모델
+
+- 대상 버전: 0.1.0 (Phase 1–5 구현)
+- 근거 문서: `GROK_DESKTOP_IMPLEMENTATION_SPEC.md` 8절
+
+## 1. 신뢰 경계
+
+```text
+사용자 ──▶ Renderer (샌드박스, Node 없음)
+             │  contextBridge 로 노출된 6개 도메인만 호출 가능
+             ▼
+          Preload (채널 이름만 알고 있음)
+             │  ipcRenderer.invoke(고정 채널)
+             ▼
+          Main process ── 스키마 검증 · 경로 검증 · 권한 판단 · 비밀 마스킹
+             │  stdin/stdout JSON-RPC
+             ▼
+          Grok Build CLI ── 자체 인증 · 샌드박스 · 도구 실행
+```
+
+renderer가 손상되어도 얻을 수 있는 최대 권한은 `packages/shared/src/ipc.ts`에 정의된 입력 스키마를 통과하는 요청뿐이다.
+
+## 2. 실제로 적용된 통제
+
+| 통제 | 위치 | 확인 방법 |
+|---|---|---|
+| `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true` | `apps/desktop/src/main/window.ts` | 실행 중 renderer에서 `require`/`process`/`module` 모두 `undefined` |
+| 엄격한 CSP (`default-src 'none'`, `script-src 'self'`) | `window.ts` `contentSecurityPolicy()` | 응답 헤더로 주입 |
+| 채널별 Zod 검증 + 알 수 없는 키 거부(`.strict()`) | `packages/shared/src/ipc.ts`, `apps/desktop/src/main/ipc.ts` | `tests/security/ipc-and-urls.test.ts` |
+| IPC sender 검증 (webContents id + mainFrame) | `apps/desktop/src/main/ipc.ts` `assertTrustedSender` | 다른 프레임/창의 호출은 거부 |
+| realpath 기반 작업공간 봉쇄 | `packages/security/src/paths.ts` | `tests/security/path-containment.test.ts` (`../`, 심볼릭 링크, 심볼릭 디렉터리 경유 쓰기) |
+| 위험 경로 차단/경고 | `classifyWorkspaceRoot` | 같은 테스트 파일 |
+| 명령 위험도 분류 | `packages/security/src/commands.ts` | `packages/security/src/commands.test.ts` |
+| 승인 없는 상태 변경 금지 | `apps/desktop/src/main/services/permission-engine.ts` | `permission-engine.test.ts`, `tests/e2e/approval-flow.test.ts` |
+| 비밀 값 마스킹 | `packages/security/src/secrets.ts` | `secrets.test.ts`, 로거·diff·터미널 출력 경유 |
+| 자식 프로세스 환경변수 최소화 | `packages/security/src/env.ts` | `ipc-and-urls.test.ts` |
+| https 허용 목록 외 링크 차단 | `packages/security/src/url.ts` | `ipc-and-urls.test.ts` |
+| 앱 종료 시 프로세스 그룹 종료 | `packages/acp-client/src/connection.ts` `killProcessTree` | `tests/e2e/acp-connection.test.ts` |
+
+## 3. 경로 봉쇄가 동작하는 방식
+
+앱은 ACP 클라이언트 능력으로 `fs.readTextFile`과 `fs.writeTextFile`을 **활성화**하고 `terminal`은 비활성화한다. 그 결과:
+
+- 에이전트의 파일 읽기·쓰기 요청이 앱을 거치므로 모든 경로에 `realpath` 정규화와 루트 포함 검사를 강제할 수 있다.
+- 명령 실행은 CLI가 자체 샌드박스 안에서 수행한다. 앱은 실행 전에 승인 UI를 띄우는 계층이다.
+
+존재하지 않는 파일도 "가장 깊은 실존 조상 디렉터리를 realpath로 해석한 뒤 나머지 경로를 붙이는" 방식으로 정규화한다. 이 때문에 `workspace/symlink-to-outside/new.txt` 같은 신규 쓰기도 차단된다.
+
+## 4. 승인 정책
+
+| 프로필 | 읽기/검색 | 수정/이동 | 삭제 | 명령 실행 |
+|---|---|---|---|---|
+| read-only | 자동 허용 | 거부 | 거부 | 거부 |
+| ask (기본) | 자동 허용 | 매번 승인 | 매번 승인 | 매번 승인 |
+| trusted | 자동 허용 | 자동 허용(민감 파일 제외) | 매번 승인 | 매번 승인 |
+
+추가 규칙:
+
+- 작업공간 밖 경로는 프로필과 무관하게 **항상 자동 거부**한다.
+- 민감 파일(`.env`, 개인 키, 브라우저 데이터 등)은 읽기조차 승인 대상이다.
+- 삭제·설치·`git push`·네트워크·권한 변경·DB 마이그레이션·시스템 설정 명령은 세션 허용을 무시하고 매번 묻는다(`alwaysAsk`).
+- 승인 범위는 `once` / `session` / `deny` 세 가지뿐이다. 영구 허용은 제공하지 않는다.
+- 승인 범위는 renderer가 보낸 `optionId`가 아니라 `scope` 값으로 결정한다. 조작된 `optionId`가 일회 허용을 영구 허용으로 바꿀 수 없다.
+- Ask/Plan 모드는 작업공간 프로필과 무관하게 read-only로 강등된다.
+
+## 5. 데이터 유출 방지
+
+- 앱이 폴더 내용을 선제적으로 업로드하지 않는다. 파일은 에이전트가 도구로 요청할 때만 읽히고, 읽은 경로는 도구 카드에 표시된다.
+- 파일 접근과 네트워크 전송이 한 명령에 함께 있으면 위험도를 `critical`로 올리고 별도 경고를 표시한다.
+- UI·로그·세션 저장소로 나가는 모든 문자열은 `maskSecrets()`를 통과한다.
+- 인증 토큰은 앱이 저장하지 않는다. 로컬 저장소(`metadata.json`, 0600)에는 작업공간·세션·승인 이력만 남고, UI 복구용 대화 캐시는 `userData/sessions/<id>.json`에 비밀 마스킹 후 둔다.
+
+## 6. 명세와 다르게 구현한 부분
+
+1. **IPC 채널 추가**: 명세 12절 목록에 더해 `workspace:read-tree`, `workspace:read-file`, `session:list`, `session:resume`, `session:restart`, `session:rename`, `changes:revert`를 두었다. 파일 탐색기·세션 재개·되돌리기에 필요하며, 경로가 있는 채널은 `workspaceId`로 루트를 찾은 뒤 동일한 경로 검증을 거친다.
+2. **로컬 저장소**: SQLite 대신 `userData/metadata.json`(0600, 원자적 교체)을 사용한다. 네이티브 모듈 없이 같은 요구사항을 만족한다.
+3. **임시 디렉터리 예외**: macOS의 사용자 임시 폴더는 `/private/var` 아래라 시스템 디렉터리 규칙에 걸린다. 임시 폴더 **하위** 프로젝트는 경고와 함께 허용하고, 임시 폴더 루트 자체는 차단한다.
+4. **인증 상태 감지**: CLI에 기계 판독용 인증 조회 명령이 문서화되어 있지 않아 `~/.grok`의 자격 증명 파일 존재 여부로 추정한다. 실제 인증 실패는 프롬프트 오류에서 `auth-required`로 정정된다.
+
+## 6.1 자식 프로세스 수명
+
+정상 종료(앱 종료, 세션 파킹, 모델 전환)에서는 에이전트가 프로세스 그룹째 정리된다. 앱이 SIGKILL로 죽거나 크래시하면 정리 코드가 돌 기회가 없으므로, 앱은 자신이 띄운 에이전트의 pid를 `userData/agent-pids.json`에 기록하고 다음 실행에서 회수한다. 회수 전에 `ps`로 해당 pid가 여전히 grok 에이전트인지 확인하므로, 사용자가 터미널에서 직접 띄운 `grok`이나 재사용된 pid는 절대 종료하지 않는다.
+
+## 7. 아직 남은 위험
+
+- **prompt injection**: 저장소에 심어진 지시문이 에이전트를 유도할 수 있다. 완화 수단은 승인 UI와 경로 봉쇄이며, 자동 허용 범위를 넓히면 그만큼 위험이 커진다.
+- **CLI 자체의 파일 쓰기**: 에이전트가 `fs/write_text_file` 대신 자체 도구로 파일을 바꾸면 앱은 스냅샷을 갖지 못한다. 이 경우 변경 목록은 Git 상태로 보완하고 되돌리기는 제공하지 않는다.
+- **코드 서명**: 현재 빌드는 서명·공증되지 않았다. `RELEASE_CHECKLIST.md` 참고.
+- **UI 레벨 E2E**: Playwright 기반 화면 자동화는 아직 없다. 승인 왕복은 세션 매니저 수준에서 검증한다.

@@ -1,0 +1,18 @@
+node_modules/
+dist/
+out/
+release/
+coverage/
+*.log
+.DS_Store
+.vite/
+tests/.tmp/
+
+# 로컬 실행 산출물 (사용자 데이터가 들어갈 수 있음)
+*.local
+.env
+.env.*
+agent-pids.json
+metadata.json
+sessions/
+*.jsonl

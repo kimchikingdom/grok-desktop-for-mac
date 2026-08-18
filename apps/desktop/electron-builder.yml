@@ -1,0 +1,35 @@
+appId: io.github.kimchikingdom.grokdesktop
+productName: Grok Desktop
+copyright: Grok Desktop contributors
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+# Everything is bundled into out/, so no node_modules are shipped.
+asar: true
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  # Signing identity and notarisation credentials are supplied by CI, never
+  # committed. Without them the build produces an unsigned local artefact.
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+dmg:
+  artifactName: ${productName}-${version}-${arch}.dmg
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+publish: null

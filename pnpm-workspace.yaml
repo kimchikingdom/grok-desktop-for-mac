@@ -1,0 +1,10 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# esbuild needs its postinstall to place the platform binary; the Windows
+# installer builder is not used on this machine.
+allowBuilds:
+  esbuild: true
+  electron: true
+  electron-winstaller: false

@@ -1,0 +1,58 @@
+/**
+ * Channel names only, with no schema dependencies, so the preload bundle stays
+ * tiny and free of validation code it does not run.
+ */
+export const IpcChannels = {
+  authGetStatus: 'auth:get-status',
+  authStartLogin: 'auth:start-login',
+  runtimeGetStatus: 'runtime:get-status',
+  runtimeInstallRequest: 'runtime:install-request',
+  runtimeExportLog: 'runtime:export-log',
+  workspaceChoose: 'workspace:choose',
+  workspaceList: 'workspace:list',
+  workspaceOpenRecent: 'workspace:open-recent',
+  workspaceReadTree: 'workspace:read-tree',
+  workspaceReadFile: 'workspace:read-file',
+  workspaceSearchFiles: 'workspace:search-files',
+  workspacePickFiles: 'workspace:pick-files',
+  workspaceAttachPaths: 'workspace:attach-paths',
+  workspaceReadMedia: 'workspace:read-media',
+  workspaceUpdate: 'workspace:update',
+  workspaceWriteFile: 'workspace:write-file',
+  workspaceSaveInboxImage: 'workspace:save-inbox-image',
+  workspaceReveal: 'workspace:reveal',
+  workspaceOpenPath: 'workspace:open-path',
+  workspaceExtras: 'workspace:extras',
+  workspaceToggleExtra: 'workspace:toggle-extra',
+  sessionCreate: 'session:create',
+  sessionResume: 'session:resume',
+  sessionRestart: 'session:restart',
+  sessionRename: 'session:rename',
+  sessionDelete: 'session:delete',
+  sessionSetModel: 'session:set-model',
+  sessionSetMode: 'session:set-mode',
+  sessionPrompt: 'session:prompt',
+  sessionCancel: 'session:cancel',
+  sessionList: 'session:list',
+  sessionPermissionDecision: 'session:permission-decision',
+  sessionExport: 'session:export',
+  sessionExportRaw: 'session:export-raw',
+  sessionRewind: 'session:rewind',
+  sessionFork: 'session:fork',
+  sessionInfo: 'session:info',
+  sessionApplyWorktree: 'session:apply-worktree',
+  sessionEvent: 'session:event',
+  diffGet: 'diff:get',
+  diffList: 'diff:list',
+  changesRevert: 'changes:revert',
+  changesAct: 'changes:act',
+  changesCommit: 'changes:commit',
+  changesPush: 'changes:push',
+  changesCreatePr: 'changes:create-pr',
+  externalOpenSafeUrl: 'external:open-safe-url',
+  externalOpenLocalhost: 'external:open-localhost',
+} as const;
+
+export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
+
+export const ALL_IPC_CHANNELS: readonly IpcChannel[] = Object.values(IpcChannels);

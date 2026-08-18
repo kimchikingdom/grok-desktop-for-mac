@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": [
+    "packages/shared/src",
+    "packages/security/src",
+    "packages/acp-client/src",
+    "apps/desktop/src/main",
+    "apps/desktop/src/preload",
+    "apps/desktop/electron.vite.config.ts",
+    "tests",
+    "vitest.config.ts"
+  ]
+}
