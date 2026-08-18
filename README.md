@@ -1,5 +1,7 @@
 # Grok Desktop (Unofficial)
 
+*[한국어 README](README.ko.md)*
+
 > **This is an unofficial community project.** It is not built, endorsed, or sponsored by xAI, and
 > it has no affiliation with xAI. "Grok" and "xAI" are trademarks of xAI Corp., used here only
 > descriptively to identify the tool this app works with. No xAI logos, icons, or brand assets are
