@@ -143,6 +143,17 @@ accessibility and performance polish, and signed/notarized distribution (Phase 7
 
 Note that most in-app copy and the documents under `docs/` are written in Korean.
 
+## Built with
+
+This project was written with three AI coding agents working on the same codebase:
+
+- [Claude Code](https://claude.com/claude-code) (Anthropic)
+- [Codex](https://openai.com/codex/) (OpenAI)
+- [Grok Build CLI](https://docs.x.ai/build/overview) (xAI) — also the runtime this app drives
+
+Commits carry `Co-authored-by:` trailers for the agents involved in that particular change.
+None of these vendors are affiliated with this project.
+
 ## License
 
 No license is granted (all rights reserved). The source is published for reading and review only;

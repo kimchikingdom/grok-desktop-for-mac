@@ -121,6 +121,17 @@ Phase 1–5와 Phase 6의 세션 재개·오류 복구까지 구현했다. 남�
 
 앱 내 문구와 `docs/` 문서는 한국어로 작성되어 있다.
 
+## 만든 도구
+
+이 프로젝트는 세 개의 AI 코딩 에이전트를 함께 써서 작성했다.
+
+- [Claude Code](https://claude.com/claude-code) (Anthropic)
+- [Codex](https://openai.com/codex/) (OpenAI)
+- [Grok Build CLI](https://docs.x.ai/build/overview) (xAI) — 이 앱이 구동하는 런타임이기도 하다
+
+커밋에는 그 변경에 참여한 에이전트의 `Co-authored-by:` 트레일러가 붙어 있다.
+세 곳 모두 이 프로젝트와 제휴 관계는 없다.
+
 ## 라이선스
 
 라이선스를 부여하지 않습니다(All rights reserved). 소스는 열람·검토 목적으로 공개하며,
