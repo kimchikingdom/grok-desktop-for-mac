@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, chmod, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { maskSecrets } from '@grok-desktop/security';
 
@@ -6,9 +6,11 @@ type Level = 'debug' | 'info' | 'warn' | 'error' | 'security';
 
 let logDirectory: string | null = null;
 let queue: Promise<void> = Promise.resolve();
+let permissionsAsserted = false;
 
 export function configureLogger(directory: string): void {
   logDirectory = directory;
+  permissionsAsserted = false;
 }
 
 /**
@@ -28,8 +30,17 @@ function write(level: Level, message: string, context?: Record<string, unknown>)
   const directory = logDirectory;
   queue = queue
     .then(async () => {
-      await mkdir(directory, { recursive: true });
-      await appendFile(path.join(directory, 'grok-desktop.log'), `${line}\n`, { encoding: 'utf8', mode: 0o600 });
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      const file = path.join(directory, 'grok-desktop.log');
+      await appendFile(file, `${line}\n`, { encoding: 'utf8', mode: 0o600 });
+      // `mode` only applies when appendFile creates the file, so a log that
+      // already exists keeps whatever the umask gave it. Re-assert it once per
+      // run rather than trusting the file it found.
+      if (!permissionsAsserted) {
+        permissionsAsserted = true;
+        await chmod(file, 0o600).catch(() => undefined);
+        await chmod(directory, 0o700).catch(() => undefined);
+      }
     })
     .catch(() => {
       // Logging must never break the app.

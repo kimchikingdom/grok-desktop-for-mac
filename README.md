@@ -36,6 +36,13 @@ The app looks for `grok` on your `PATH` and in `~/.grok/bin`, `~/.local/bin`, `/
 `/opt/homebrew/bin`. If yours lives somewhere else, point at it with the `GROK_DESKTOP_CLI_PATH`
 environment variable.
 
+### Supported CLI versions
+
+The app speaks ACP protocol version 1 over `grok agent stdio` and negotiates capabilities from the
+handshake, so it enforces no minimum CLI version — it reports whatever `grok version` prints and
+adapts to what the agent advertises. Developed and exercised against CLI 1.0.3 through 1.0.30. A
+CLI that drops ACP protocol 1 would break it.
+
 ## Development
 
 ```bash
@@ -117,7 +124,11 @@ only for events the CLI log does not carry, such as approvals and file changes.
 - Sessions, workspaces, approval history: `~/Library/Application Support/Grok Desktop/metadata.json` (mode 0600)
 - UI transcript cache (fallback): `~/Library/Application Support/Grok Desktop/sessions/<session-id>.json`
 - App-only overlay: `~/Library/Application Support/Grok Desktop/overlays/<session-id>.jsonl`
-- Diagnostic log: `~/Library/Application Support/Grok Desktop/logs/grok-desktop.log`
+- Diagnostic log: `~/Library/Application Support/Grok Desktop/logs/grok-desktop.log` (mode 0600)
+
+Those paths are for the packaged app, whose name is `Grok Desktop`. Running from source with
+`pnpm dev` uses the workspace package name instead, so the same files live under
+`~/Library/Application Support/@grok-desktop/desktop/`.
 
 The app never stores auth tokens. xAI authentication is handled entirely by the Grok CLI.
 

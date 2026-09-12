@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
-import { readFile, writeFile, unlink, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, unlink, mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { createTwoFilesPatch } from 'diff';
-import { MAX_INLINE_FILE_BYTES, looksBinary, maskSecrets, sanitizeEnvironment } from '@grok-desktop/security';
+import { MAX_INLINE_FILE_BYTES, looksBinary, maskSecrets, resolveWithinRoot, sanitizeEnvironment } from '@grok-desktop/security';
 import type { DiffPreview, FileChangeSummary } from '@grok-desktop/shared';
 import { logger } from './logger.js';
 
@@ -218,22 +218,47 @@ export function parsePorcelainPath(line: string): string {
   return trimmed;
 }
 
+const NAMED_ESCAPE_BYTES: Record<string, number> = {
+  a: 0x07,
+  b: 0x08,
+  f: 0x0c,
+  n: 0x0a,
+  r: 0x0d,
+  t: 0x09,
+  v: 0x0b,
+  '\\': 0x5c,
+  '"': 0x22,
+};
+
+/**
+ * Git escapes a non-ASCII name one octal escape per UTF-8 byte, so the escapes
+ * have to be gathered and decoded together: decoding them one at a time turns a
+ * Korean file name into mojibake and the path then matches nothing on disk.
+ */
 function unquoteGitCString(inner: string): string {
-  return inner.replace(/\\([abfnrtv\\"]|[0-7]{1,3})/g, (_match, cap: string) => {
-    const named: Record<string, string> = {
-      a: '\x07',
-      b: '\b',
-      f: '\f',
-      n: '\n',
-      r: '\r',
-      t: '\t',
-      v: '\v',
-      '\\': '\\',
-      '"': '"',
-    };
-    if (cap in named) return named[cap] ?? cap;
-    return String.fromCharCode(Number.parseInt(cap, 8));
-  });
+  const bytes: number[] = [];
+  for (let index = 0; index < inner.length; index += 1) {
+    const char = inner[index] ?? '';
+    if (char !== '\\') {
+      bytes.push(...Buffer.from(char, 'utf8'));
+      continue;
+    }
+    const escaped = inner[index + 1] ?? '';
+    const named = NAMED_ESCAPE_BYTES[escaped];
+    if (named !== undefined) {
+      bytes.push(named);
+      index += 1;
+      continue;
+    }
+    const octal = /^[0-7]{1,3}/.exec(inner.slice(index + 1, index + 4))?.[0];
+    if (octal === undefined) {
+      bytes.push(0x5c); // a lone backslash Git did not escape
+      continue;
+    }
+    bytes.push(Number.parseInt(octal, 8) & 0xff);
+    index += octal.length;
+  }
+  return Buffer.from(bytes).toString('utf8');
 }
 
 export type GitDiffScope = 'working' | 'staged' | 'branch';
@@ -402,6 +427,100 @@ export async function collectGitChangesForScope(
   }
 }
 
+export type DiffLineCounts = { additions: number; deletions: number };
+
+/** Untracked files are read one by one, so only this many are counted per list. */
+const MAX_UNTRACKED_STAT_FILES = 100;
+
+/**
+ * Parse `git diff --numstat -z` into counts keyed by repository-relative path.
+ * `-z` is what keeps Korean and spaced paths readable: without it Git honours
+ * core.quotePath and hands back a C-quoted, escaped name instead.
+ */
+export function parseNumstat(stdout: string): Map<string, DiffLineCounts> {
+  const counts = new Map<string, DiffLineCounts>();
+  for (const record of stdout.split('\0')) {
+    if (record.length === 0) continue;
+    const firstTab = record.indexOf('\t');
+    const secondTab = record.indexOf('\t', firstTab + 1);
+    if (firstTab < 0 || secondTab < 0) continue;
+    const relPath = record.slice(secondTab + 1);
+    if (relPath.length === 0) continue;
+    // Binary files report `-` for both columns; count them as zero line changes.
+    const additions = Number.parseInt(record.slice(0, firstTab), 10);
+    const deletions = Number.parseInt(record.slice(firstTab + 1, secondTab), 10);
+    counts.set(relPath, {
+      additions: Number.isFinite(additions) ? additions : 0,
+      deletions: Number.isFinite(deletions) ? deletions : 0,
+    });
+  }
+  return counts;
+}
+
+/** Lines in a file the way Git counts them: a trailing newline ends a line. */
+function countTextLines(text: string): number {
+  if (text.length === 0) return 0;
+  const lines = text.split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  return lines.length;
+}
+
+async function runNumstat(canonicalRoot: string, scope: GitDiffScope): Promise<Map<string, DiffLineCounts>> {
+  try {
+    const range = scope === 'branch' ? [`${await gitBaseBranch(canonicalRoot)}...HEAD`] : [];
+    const cached = scope === 'staged' ? ['--cached'] : [];
+    const { stdout } = await execFileAsync(
+      'git',
+      ['diff', '--numstat', '-z', '--no-renames', ...cached, ...range],
+      {
+        cwd: canonicalRoot,
+        timeout: 5_000,
+        env: sanitizeEnvironment(process.env),
+        maxBuffer: 4 * 1024 * 1024,
+      },
+    );
+    return parseNumstat(stdout);
+  } catch {
+    return new Map();
+  }
+}
+
+/**
+ * Per-file additions/deletions for the review list, in one `git diff` per scope
+ * rather than one per file.
+ */
+export async function collectDiffLineCounts(
+  canonicalRoot: string,
+  scope: GitDiffScope,
+  entries: { relPath: string; status: FileChangeSummary['status'] }[],
+): Promise<Map<string, DiffLineCounts>> {
+  const counts = await runNumstat(canonicalRoot, scope);
+  if (scope !== 'working') return counts;
+
+  // `git diff` never reports untracked files, so their additions come from the
+  // file itself. Reading is bounded on purpose — a list can hold a whole
+  // untracked build output tree — so beyond the cap the rows stay at 0 rather
+  // than making the panel wait on disk.
+  let read = 0;
+  for (const entry of entries) {
+    if (read >= MAX_UNTRACKED_STAT_FILES) break;
+    if (entry.status !== 'added' || counts.has(entry.relPath)) continue;
+    if (looksBinary(entry.relPath)) continue;
+    const absPath = path.join(canonicalRoot, entry.relPath);
+    try {
+      const info = await stat(absPath);
+      // Porcelain collapses a whole untracked directory into one entry, so the
+      // path here is not always a file.
+      if (!info.isFile() || info.size > MAX_INLINE_FILE_BYTES) continue;
+      read += 1;
+      counts.set(entry.relPath, { additions: countTextLines(await readFile(absPath, 'utf8')), deletions: 0 });
+    } catch {
+      // Gone or unreadable between listing and counting: leave the row at 0.
+    }
+  }
+  return counts;
+}
+
 export type DiffHunk = {
   header: string;
   patch: string;
@@ -426,6 +545,29 @@ export function parseDiffHunks(unifiedDiff: string): DiffHunk[] {
   }
   if (current.length > 0) hunks.push({ header, patch: [...preamble, ...current].join('\n') + '\n' });
   return hunks;
+}
+
+/**
+ * Every workspace path a patch names. `git apply` reads the file names out of
+ * the patch itself, so the caller has to contain these, not just the relPath it
+ * thinks it is patching.
+ */
+export function pathsInPatch(patch: string): string[] {
+  const found = new Set<string>();
+  for (const line of patch.split('\n')) {
+    const gitHeader = /^diff --git a\/(.+) b\/(.+)$/.exec(line);
+    if (gitHeader) {
+      if (gitHeader[1]) found.add(gitHeader[1]);
+      if (gitHeader[2]) found.add(gitHeader[2]);
+      continue;
+    }
+    const fileHeader = /^(?:---|\+\+\+) (.+?)(?:\t.*)?$/.exec(line);
+    if (!fileHeader) continue;
+    const raw = fileHeader[1];
+    if (!raw || raw === '/dev/null') continue;
+    found.add(raw.replace(/^[ab]\//, ''));
+  }
+  return [...found];
 }
 
 export async function applyGitHunk(
@@ -518,6 +660,15 @@ export async function gitRestoreFile(
   scope: GitDiffScope,
 ): Promise<boolean> {
   if (scope === 'branch') return false;
+  // Git resolves a path against the repository, not the cwd, so a workspace that
+  // sits inside a larger repo could otherwise have files above it restored.
+  // The caller contains the path too; this is the layer that cannot be skipped.
+  try {
+    await resolveWithinRoot(canonicalRoot, relPath);
+  } catch {
+    logger.security('작업공간 밖 경로의 되돌리기를 거부했습니다.', { relPath });
+    return false;
+  }
   try {
     const args = scope === 'staged' ? ['restore', '--staged', '--worktree', '--', relPath] : ['restore', '--', relPath];
     await execFileAsync('git', args, {

@@ -10,6 +10,7 @@ import {
   isWithinRoot,
   resolveWithinRoot,
 } from '@grok-desktop/security';
+import { gitRestoreFile } from '../../apps/desktop/src/main/services/diff.js';
 
 let root: string;
 let workspace: string;
@@ -113,3 +114,17 @@ describe('workspace root policy', () => {
     expect(result.canonicalRoot).toBe(workspace);
   });
 });
+
+describe('git helpers that run inside the workspace', () => {
+  it('refuses to restore a path that climbs out of the workspace', async () => {
+    // A workspace can be a subdirectory of a bigger repository, where `git
+    // restore -- ../file` is a legal Git path but an escape for this app.
+    await expect(gitRestoreFile(workspace, '../outside/secret.txt', 'working')).resolves.toBe(false);
+    await expect(gitRestoreFile(workspace, '/etc/hosts', 'working')).resolves.toBe(false);
+    await expect(gitRestoreFile(workspace, 'src/../../outside/secret.txt', 'staged')).resolves.toBe(false);
+  });
+
+  it('still refuses the branch scope outright', async () => {
+    await expect(gitRestoreFile(workspace, 'src/index.ts', 'branch')).resolves.toBe(false);
+  });
+})

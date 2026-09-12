@@ -1,6 +1,6 @@
 import { dialog, ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import type { ZodType } from 'zod';
-import { assertSafeExternalUrl, resolveWithinRoot } from '@grok-desktop/security';
+import { PathEscapeError, assertSafeExternalUrl, resolveWithinRoot } from '@grok-desktop/security';
 import {
   IpcChannels,
   cancelInput,
@@ -49,6 +49,7 @@ import {
 } from '@grok-desktop/shared';
 import {
   applyGitHunk,
+  collectDiffLineCounts,
   collectGitChangesForScope,
   gitDiffFile,
   gitRestoreFile,
@@ -57,6 +58,7 @@ import {
   gitCurrentBranch,
   gitPush,
   gitStageFile,
+  pathsInPatch,
   previewFromPatch,
   type ChangeTracker,
   type GitDiffScope,
@@ -116,7 +118,13 @@ export function registerIpcHandlers(context: IpcContext): void {
         return await handler(parsed.data);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        logger.warn('IPC 처리 실패', { channel, reason: message });
+        // A refused path escape is a security event, not routine noise: the
+        // diagnostic log is where a reviewer looks for attempts like this.
+        if (error instanceof PathEscapeError) {
+          logger.security('작업공간 밖 경로 요청을 거부했습니다.', { channel, reason: message });
+        } else {
+          logger.warn('IPC 처리 실패', { channel, reason: message });
+        }
         throw new Error(publicIpcError(message));
       }
     });
@@ -383,12 +391,13 @@ export function registerIpcHandlers(context: IpcContext): void {
     if (!workspace) throw new Error('세션을 찾을 수 없습니다.');
     if (input.scope === 'turn') return sessions.openResult(input.sessionId)?.changes ?? changes.listChanges(input.sessionId);
     const listed = await collectGitChangesForScope(workspace.canonicalRootPath, input.scope);
+    const counts = await collectDiffLineCounts(workspace.canonicalRootPath, input.scope, listed);
     return listed.map((entry) => ({
       path: `${workspace.canonicalRootPath}/${entry.relPath}`,
       relPath: entry.relPath,
       status: entry.status,
-      additions: 0,
-      deletions: 0,
+      additions: counts.get(entry.relPath)?.additions ?? 0,
+      deletions: counts.get(entry.relPath)?.deletions ?? 0,
       revertable: input.scope !== 'branch',
     }));
   });
@@ -396,20 +405,23 @@ export function registerIpcHandlers(context: IpcContext): void {
   handle(IpcChannels.changesRevert, revertInput, async (input) => {
     const workspace = sessions.getWorkspace(input.sessionId);
     if (!workspace) throw new Error('세션을 찾을 수 없습니다.');
+    // `git restore` runs with the workspace as its cwd but resolves paths against
+    // the whole repository, so a relPath has to be contained before it gets there.
+    const resolved = await resolveWithinRoot(workspace.canonicalRootPath, input.relPath);
     const scope = input.scope ?? 'turn';
-    if (scope === 'turn' && changes.isRevertable(input.sessionId, input.relPath)) {
-      await changes.revert(input.sessionId, input.relPath);
+    if (scope === 'turn' && changes.isRevertable(input.sessionId, resolved.relPath)) {
+      await changes.revert(input.sessionId, resolved.relPath);
     } else if (scope !== 'branch') {
       const ok = await gitRestoreFile(
         workspace.canonicalRootPath,
-        input.relPath,
+        resolved.relPath,
         scope === 'staged' ? 'staged' : 'working',
       );
       if (!ok) throw new Error('Git으로 이 파일을 되돌리지 못했습니다.');
     } else {
       throw new Error('브랜치 범위는 되돌릴 수 없습니다.');
     }
-    sessions.forgetChange(input.sessionId, input.relPath);
+    sessions.forgetChange(input.sessionId, resolved.relPath);
     return undefined;
   });
 
@@ -422,6 +434,11 @@ export function registerIpcHandlers(context: IpcContext): void {
       return undefined;
     }
     if (!input.hunk) throw new Error('이 파일의 조각을 찾지 못했습니다.');
+    // The patch text names its own files, and `git apply` honours those names
+    // rather than the relPath above, so every path it touches is contained too.
+    for (const candidate of pathsInPatch(input.hunk)) {
+      await resolveWithinRoot(workspace.canonicalRootPath, candidate);
+    }
     await applyGitHunk(
       workspace.canonicalRootPath,
       input.hunk,

@@ -17,17 +17,17 @@ Phase 7(배포)에서 사용한다. Phase 1–5 구현 시점에는 서명·공�
 
 ## 2. 보안 확인
 
-- [ ] renderer에서 `require`, `process`, `module`, `window.ipcRenderer` 가 모두 `undefined`
-- [ ] CSP 응답 헤더가 실제로 적용됨 (`default-src 'none'`)
-- [ ] 작업공간 밖 경로 요청이 차단되고 보안 로그에 남음
-- [ ] 진단 로그(`userData/logs/grok-desktop.log`)에 토큰·키가 남지 않음
-- [ ] `metadata.json` 권한이 0600
-- [ ] 앱 종료 후 `grok` 자식 프로세스가 남지 않음 (`pgrep -f "agent stdio"`)
-- [ ] 허용 목록 외 URL이 열리지 않음
+- [x] renderer에서 `require`, `process`, `module`, `window.ipcRenderer` 가 모두 `undefined` — 2026-09-12 실행 중인 앱에서 확인. `global`·`Buffer`도 없고 `window.grokDesktop`은 동결된 6개 네임스페이스뿐
+- [x] CSP 응답 헤더가 실제로 적용됨 (`default-src 'none'`) — 외부 fetch와 img가 실제로 막히고 `connect-src`·`img-src` 위반 이벤트가 발생. 단 확인은 개발 서버(http) 기준, 패키징본(file://)은 미확인
+- [x] 작업공간 밖 경로 요청이 차단되고 보안 로그에 남음 — `../../../../etc/passwd`, 절대경로, 인코딩 우회, 중간 `..` 4종 모두 거부되고 `[security]`로 기록
+- [x] 진단 로그(`userData/logs/grok-desktop.log`)에 토큰·키가 남지 않음 — 423줄 전수 검사에서 비밀 패턴 0건
+- [x] `metadata.json` 권한이 0600 — `logs/`(0700)와 로그 파일(0600)도 함께 확인. 기존 로그 파일이 0644로 남던 문제를 고쳤다
+- [x] 앱 종료 후 `grok` 자식 프로세스가 남지 않음 (`pgrep -f "agent stdio"`) — `agent-pids.json`도 비어 있음
+- [x] 허용 목록 외 URL이 열리지 않음 — `file:`, `javascript:`, http, 허용 호스트 스푸핑(`x.ai.evil.com`), 자격 증명 포함 URL 모두 거부
 
 ## 3. macOS 패키징
 
-- [ ] 자체 제작 앱 아이콘 준비 (`build/icon.icns` / `icon.ico`). 타사 로고는 사용하지 않는다.
+- [x] 자체 제작 앱 아이콘 준비 (`build/icon.icns` 10종·최대 1024 / `build/icon.ico` 7프레임·256 포함). 자체 제작 `src/renderer/assets/app-icon.svg`에서 변환했다. 타사 로고는 쓰지 않았다.
 - [ ] `CSC_LINK` / `CSC_KEY_PASSWORD` 로 Developer ID Application 인증서 주입
 - [ ] `hardenedRuntime: true` 유지, `entitlements.mac.plist` 검토
 - [ ] `pnpm package:mac`
@@ -44,10 +44,10 @@ Phase 7(배포)에서 사용한다. Phase 1–5 구현 시점에는 서명·공�
 
 ## 5. 문서
 
-- [ ] README의 요구사항(Node LTS, Grok CLI 설치 명령)이 최신인지
-- [ ] 데이터 저장 위치 명시: `~/Library/Application Support/Grok Desktop/`
-- [ ] 알려진 제한 사항 갱신 (`SECURITY_MODEL.md` 7절)
-- [ ] 지원하는 Grok CLI 버전 범위 기록
+- [x] README의 요구사항(Node LTS, Grok CLI 설치 명령)이 최신인지 — `.nvmrc` 22.11.0, pnpm 11, 명령 표 모두 일치
+- [x] 데이터 저장 위치 명시: `~/Library/Application Support/Grok Desktop/` — 개발 모드는 `@grok-desktop/desktop/`을 쓴다는 차이도 README에 적었다
+- [x] 알려진 제한 사항 갱신 (`SECURITY_MODEL.md` 7절) — IPv6 루프백 미리보기, 상위 저장소 안의 작업공간, 핸들러 단위 봉쇄 테스트 부재를 추가
+- [x] 지원하는 Grok CLI 버전 범위 기록 — ACP 프로토콜 1, 최소 버전 강제 없음, 1.0.3~1.0.30에서 확인 (README)
 
 ## 6. 배포 후
 
