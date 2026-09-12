@@ -25,3 +25,15 @@ export function parseLocalhostUrl(raw: string): string | null {
   }
   return url.href;
 }
+
+/**
+ * Chromium rejects bracketed IPv6 hosts in a CSP source list, so `[::1]` can
+ * never be framed no matter what `frame-src` says. Such a URL still opens in
+ * the browser — the in-app preview is what has to bow out.
+ */
+export function canFrameLocalhost(raw: string): boolean {
+  const parsed = parseLocalhostUrl(raw);
+  if (!parsed) return false;
+  const host = new URL(parsed).hostname.toLowerCase();
+  return host !== '[::1]' && host !== '::1';
+}

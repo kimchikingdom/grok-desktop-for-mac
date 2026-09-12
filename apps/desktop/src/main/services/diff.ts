@@ -275,6 +275,56 @@ function gitDiffArgs(scope: GitDiffScope, base: string, relPath?: string): strin
   return ['diff', '--no-color', ...pathArgs];
 }
 
+/** `git diff` ignores untracked files, so a new file is diffed against the null device. */
+const NULL_DEVICE = process.platform === 'win32' ? 'NUL' : '/dev/null';
+
+/**
+ * `--no-index` writes the null device into the headers. Name both sides after
+ * the file itself so the patch reads like any other new-file diff.
+ */
+export function normalizeUntrackedPatch(patch: string, relPath: string): string {
+  return patch
+    .split('\n')
+    .map((line) => {
+      if (line.startsWith('diff --git ')) return `diff --git a/${relPath} b/${relPath}`;
+      if (line.startsWith('--- ')) return '--- /dev/null';
+      if (line.startsWith('+++ ')) return `+++ b/${relPath}`;
+      return line;
+    })
+    .join('\n');
+}
+
+async function gitUntrackedDiff(canonicalRoot: string, relPath: string): Promise<string | null> {
+  const options = {
+    cwd: canonicalRoot,
+    timeout: 5_000,
+    env: sanitizeEnvironment(process.env),
+    maxBuffer: MAX_INLINE_FILE_BYTES * 4,
+  };
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['status', '--porcelain=v1', '--no-renames', '--', relPath],
+      options,
+    );
+    if (!stdout.startsWith('??')) return null;
+  } catch {
+    return null;
+  }
+  try {
+    // `--no-index` exits 1 whenever the two sides differ, which is always here.
+    const { stdout } = await execFileAsync(
+      'git',
+      ['diff', '--no-color', '--no-index', '--', NULL_DEVICE, relPath],
+      options,
+    );
+    return stdout.trim().length > 0 ? maskSecrets(normalizeUntrackedPatch(stdout, relPath)) : null;
+  } catch (error) {
+    const stdout = (error as { stdout?: string }).stdout ?? '';
+    return stdout.trim().length > 0 ? maskSecrets(normalizeUntrackedPatch(stdout, relPath)) : null;
+  }
+}
+
 /** Unified diff straight from Git, used when the app has no snapshot. */
 export async function gitDiffFile(
   canonicalRoot: string,
@@ -289,10 +339,12 @@ export async function gitDiffFile(
       env: sanitizeEnvironment(process.env),
       maxBuffer: MAX_INLINE_FILE_BYTES * 4,
     });
-    return stdout.trim().length > 0 ? maskSecrets(stdout) : null;
+    if (stdout.trim().length > 0) return maskSecrets(stdout);
   } catch {
     return null;
   }
+  // Nothing tracked changed: the file may simply be new to the repository.
+  return scope === 'working' ? gitUntrackedDiff(canonicalRoot, relPath) : null;
 }
 
 export async function collectGitChangesForScope(

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import type { FileHit, PromptToolFlag, WorkMode } from '@grok-desktop/shared';
 import { resolveComposerAction } from '../composer-keys.js';
 import { IconClose, IconFile, IconPlus, IconSend, IconStop } from '../icons.js';
+import { keepInView } from '../keep-in-view.js';
 import { MediaView } from './MediaView.js';
 import {
   filterSlashCommands,
@@ -85,6 +86,7 @@ export function Composer(): React.JSX.Element {
   const busy = status === 'running' || status === 'waiting-approval';
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const paletteRef = useRef<HTMLDivElement>(null);
+  const mentionRef = useRef<HTMLUListElement>(null);
   const recognitionRef = useRef<{ stop: () => void } | null>(null);
   const showToolChips = toolsOpen || tools.length > 0;
 
@@ -151,13 +153,13 @@ export function Composer(): React.JSX.Element {
 
   useEffect(() => {
     const root = paletteRef.current;
-    const selected = root?.querySelector<HTMLButtonElement>('button[aria-selected="true"]');
-    if (!root || !selected) return;
-    const rootBox = root.getBoundingClientRect();
-    const itemBox = selected.getBoundingClientRect();
-    if (itemBox.top < rootBox.top) root.scrollTop -= rootBox.top - itemBox.top;
-    else if (itemBox.bottom > rootBox.bottom) root.scrollTop += itemBox.bottom - rootBox.bottom;
+    keepInView(root, root?.querySelector('button[aria-selected="true"]'));
   }, [slashIndex, slashQuery]);
+
+  useEffect(() => {
+    const root = mentionRef.current;
+    keepInView(root, root?.querySelector('button[aria-selected="true"]'));
+  }, [mentionIndex, mentions]);
 
   const applySlash = (command: SlashCommand, executeLocal = false) => {
     setSlashIndex(0);
@@ -483,10 +485,17 @@ export function Composer(): React.JSX.Element {
         ) : null}
 
         {mentions.length > 0 ? (
-          <ul className="suggest mention-palette" role="listbox" aria-label="파일 제안">
+          <ul className="suggest mention-palette" ref={mentionRef} role="listbox" aria-label="파일 제안">
             {mentions.map((hit, index) => (
               <li key={hit.relPath}>
-                <button type="button" className={index === mentionIndex ? 'active' : ''} onClick={() => applyMention(hit)}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={index === mentionIndex}
+                  className={index === mentionIndex ? 'active' : ''}
+                  onMouseEnter={() => setMentionIndex(index)}
+                  onClick={() => applyMention(hit)}
+                >
                   <strong>@{hit.name}</strong>
                   <span className="muted">{hit.relPath}</span>
                 </button>

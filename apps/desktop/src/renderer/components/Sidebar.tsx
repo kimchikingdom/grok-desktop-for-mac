@@ -7,6 +7,25 @@ import { MediaView } from './MediaView.js';
 
 const RELPATH_MIME = 'application/x-grok-relpath';
 
+/**
+ * Closes a context menu on Escape. It listens in the capture phase and stops
+ * the event there, so the app-wide Escape chain (which cancels a run or denies
+ * an approval) does not also fire while a menu is open.
+ */
+function useEscapeClose<T>(open: boolean, close: React.Dispatch<React.SetStateAction<T | null>>): void {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      close(null);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [open, close]);
+}
+
 function clampMenu(x: number, y: number, width = 176, height = 196): { x: number; y: number } {
   return {
     x: Math.min(Math.max(8, x), Math.max(8, window.innerWidth - width)),
@@ -32,6 +51,7 @@ function FileTree({ relPath, depth }: { relPath: string; depth: number }): React
   const copyPath = useStore((state) => state.copyPath);
   const changes = useStore((state) => state.changes);
   const [menu, setMenu] = useState<{ x: number; y: number; node: TreeNode } | null>(null);
+  useEscapeClose(menu !== null, setMenu);
 
   if (!nodes) return null;
 
@@ -223,6 +243,7 @@ export function Sidebar(): React.JSX.Element {
   const pinnedIds = useStore((state) => state.pinnedIds);
   const togglePin = useStore((state) => state.togglePin);
   const [sessionFocusId, setSessionFocusId] = useState<string | null>(null);
+  useEscapeClose(sessionMenu !== null, setSessionMenu);
 
   useEffect(() => {
     if (tab !== 'files' || !revealedFile) return;
@@ -390,6 +411,7 @@ export function Sidebar(): React.JSX.Element {
                 <button
                   type="button"
                   role="tab"
+                  aria-selected={sessionFilter === 'all'}
                   className={sessionFilter === 'all' ? 'active' : ''}
                   onClick={() => setSessionFilter('all')}
                 >
@@ -398,6 +420,7 @@ export function Sidebar(): React.JSX.Element {
                 <button
                   type="button"
                   role="tab"
+                  aria-selected={sessionFilter === 'running'}
                   className={sessionFilter === 'running' ? 'active' : ''}
                   onClick={() => setSessionFilter('running')}
                 >
@@ -406,6 +429,7 @@ export function Sidebar(): React.JSX.Element {
                 <button
                   type="button"
                   role="tab"
+                  aria-selected={sessionFilter === 'approval'}
                   className={sessionFilter === 'approval' ? 'active' : ''}
                   onClick={() => setSessionFilter('approval')}
                 >

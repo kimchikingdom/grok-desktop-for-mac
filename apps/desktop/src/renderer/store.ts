@@ -19,6 +19,7 @@ import type {
   WorkspaceSummary,
 } from '@grok-desktop/shared';
 import { applyTranscriptEvent } from '@grok-desktop/shared';
+import { errorMessage } from './errors.js';
 import { ancestorDirs, parentDir } from './path-links.js';
 import {
   loadPrefs,
@@ -1717,6 +1718,3 @@ async function activateWorkspace(
   });
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

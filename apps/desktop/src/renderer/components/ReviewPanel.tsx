@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DiffScope } from '@grok-desktop/shared';
+import { keepInView } from '../keep-in-view.js';
 import { useStore } from '../store.js';
 import { DiffStats, DiffView } from './DiffView.js';
 
@@ -50,10 +51,16 @@ export function ReviewPanel(): React.JSX.Element {
   const [targetLine, setTargetLine] = useState<string | null>(null);
   const [commitMessage, setCommitMessage] = useState('');
   const [prTitle, setPrTitle] = useState('');
+  const fileListRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     void listReviewFiles();
   }, [session?.id, listReviewFiles]);
+
+  useEffect(() => {
+    const list = fileListRef.current;
+    keepInView(list, list?.querySelector('.tree-item.current'));
+  }, [activeDiff?.relPath, changes]);
 
   const autoOpened = useRef<string | null>(null);
   useEffect(() => {
@@ -124,7 +131,7 @@ export function ReviewPanel(): React.JSX.Element {
         </button>
       </header>
       <div className="review-body">
-        <ul className="review-files">
+        <ul className="review-files" ref={fileListRef}>
           {changes.length === 0 ? (
             <li className="muted small">이 범위에는 변경이 없습니다. 작업 트리·스테이징·브랜치를 바꿔 보세요.</li>
           ) : null}

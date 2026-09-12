@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FileHit } from '@grok-desktop/shared';
 import { filterPaletteCommands } from '../command-palette.js';
 import { IconFile } from '../icons.js';
+import { keepInView } from '../keep-in-view.js';
 import { useStore } from '../store.js';
 
 function runPaletteCommand(id: string): void {
@@ -72,6 +73,7 @@ export function QuickOpen(): React.JSX.Element | null {
   const [hits, setHits] = useState<FileHit[]>([]);
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const commandMode = mode === 'commands' || query.startsWith('>');
   const commands = useMemo(() => filterPaletteCommands(query), [query]);
 
@@ -134,6 +136,11 @@ export function QuickOpen(): React.JSX.Element | null {
     setIndex(0);
     queueMicrotask(() => inputRef.current?.focus());
   }, [open, mode]);
+
+  useEffect(() => {
+    const list = listRef.current;
+    keepInView(list, list?.querySelector('button[aria-selected="true"]'));
+  }, [index, commandMode, query]);
 
   useEffect(() => {
     if (!open || !workspace || commandMode) return;
@@ -256,7 +263,7 @@ export function QuickOpen(): React.JSX.Element | null {
             {commandMode ? '일치하는 명령이 없습니다.' : query.trim() ? '일치하는 파일이 없습니다.' : '최근 변경이 없습니다. 이름을 입력하세요.'}
           </p>
         ) : commandMode ? (
-          <ul className="quick-open-list" role="listbox" aria-label="명령 목록">
+          <ul className="quick-open-list" ref={listRef} role="listbox" aria-label="명령 목록">
             {commandRows.map((row, rowIndex) => (
               <li key={`${row.kind}-${row.id}`}>
                 <button
@@ -276,7 +283,7 @@ export function QuickOpen(): React.JSX.Element | null {
             ))}
           </ul>
         ) : (
-          <ul className="quick-open-list" role="listbox" aria-label="파일 목록">
+          <ul className="quick-open-list" ref={listRef} role="listbox" aria-label="파일 목록">
             {fileRows.map((hit, rowIndex) => (
               <li key={hit.relPath}>
                 <button

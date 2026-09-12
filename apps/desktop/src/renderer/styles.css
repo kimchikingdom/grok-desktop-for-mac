@@ -791,9 +791,16 @@ select:hover:not(:disabled) {
 .sessions li:focus-within .session-actions {
   display: flex;
 }
+/* The action strip sits on top of the row, so the title has to stop short of
+   it: 3 * 24px buttons + 8px lead-in + the 4px inset. The current session has
+   no "open beside" button, so it needs one button less. */
 .sessions li:hover .session-open,
 .sessions li:focus-within .session-open {
-  padding-right: 76px;
+  padding-right: 88px;
+}
+.sessions li.current:hover .session-open,
+.sessions li.current:focus-within .session-open {
+  padding-right: 64px;
 }
 .sessions li .icon-btn {
   width: 24px;
@@ -1322,6 +1329,13 @@ select:hover:not(:disabled) {
   background: var(--muted);
   opacity: 0.45;
 }
+/* The tick itself stays 3-5px so the rail reads as a thin scrollbar; the hit
+   area is grown past it so a turn is still easy to click. */
+.turn-tick::before {
+  content: '';
+  position: absolute;
+  inset: -1px -5px;
+}
 .turn-tick.user {
   height: 3px;
   opacity: 0.35;
@@ -1346,6 +1360,12 @@ select:hover:not(:disabled) {
 .chat-stream > * {
   width: min(740px, calc(100% - 48px));
   margin-inline: auto;
+}
+/* Every row is absolutely positioned, so the list has no in-flow content of its
+   own. Without this the column flex parent shrinks it to nothing and whatever
+   follows — the trailing copy/regenerate row — lands on top of the messages. */
+.virtual-list {
+  flex: 0 0 auto;
 }
 .virtual-row {
   padding-bottom: 18px;
@@ -1521,6 +1541,12 @@ select:hover:not(:disabled) {
 .tool-header:hover:not(:disabled) {
   background: none;
   border-color: transparent;
+}
+/* A tool call with nothing to expand is not clickable, but it should still read
+   as a normal row instead of a dimmed button. */
+.tool-header:disabled {
+  opacity: 1;
+  cursor: default;
 }
 .tool-kind {
   width: 28px;
@@ -1746,6 +1772,13 @@ select:hover:not(:disabled) {
   white-space: nowrap;
   font-size: 13px;
 }
+.preview-unsupported {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px;
+}
 .localhost-frame {
   flex: 1;
   min-height: 0;
@@ -1755,11 +1788,7 @@ select:hover:not(:disabled) {
   background: var(--raised);
 }
 .diff-pane-wrapper {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 6;
+  position: relative;
   width: min(420px, 46vw);
   flex-shrink: 0;
   border-left: 1px solid var(--border);
@@ -1815,12 +1844,11 @@ select:hover:not(:disabled) {
 .diff-line.commentable:hover {
   outline: 1px solid var(--ring);
 }
+/* A side pane, not an overlay: it sits in the workspace row so the chat and the
+   composer shrink beside it. Floating it over the main pane put the send button
+   and the turn rail underneath, where they could not be clicked. */
 .review-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 6;
+  position: relative;
   width: min(480px, 50vw);
   flex-shrink: 0;
   border-left: 1px solid var(--border);

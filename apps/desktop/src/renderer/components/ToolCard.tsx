@@ -28,7 +28,13 @@ export function ToolCard({ call }: { call: ToolCallView }): React.JSX.Element {
 
   return (
     <section className={`card tool status-${call.status}`}>
-      <button type="button" className="tool-header" onClick={() => setOpen(!open)} aria-expanded={open}>
+      <button
+        type="button"
+        className="tool-header"
+        onClick={() => setOpen(!open)}
+        disabled={!hasBody}
+        aria-expanded={hasBody ? open : undefined}
+      >
         <span className="tool-kind" aria-hidden>
           <KindIcon size={14} />
         </span>

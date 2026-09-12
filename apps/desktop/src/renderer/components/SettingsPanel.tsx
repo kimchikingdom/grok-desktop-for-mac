@@ -76,6 +76,7 @@ export function SettingsPanel(): React.JSX.Element | null {
               <button
                 key={entry.id}
                 type="button"
+                aria-pressed={viewMode === entry.id}
                 className={viewMode === entry.id ? 'active' : ''}
                 onClick={() => setViewMode(entry.id)}
               >
@@ -92,6 +93,7 @@ export function SettingsPanel(): React.JSX.Element | null {
           <div className="profile-picks">
             <button
               type="button"
+              aria-pressed={lastIsolation === 'none'}
               className={lastIsolation === 'none' ? 'active' : ''}
               onClick={() => setLastIsolation('none')}
             >
@@ -100,6 +102,7 @@ export function SettingsPanel(): React.JSX.Element | null {
             </button>
             <button
               type="button"
+              aria-pressed={lastIsolation === 'worktree'}
               className={lastIsolation === 'worktree' ? 'active' : ''}
               onClick={() => setLastIsolation('worktree')}
             >
@@ -138,6 +141,7 @@ export function SettingsPanel(): React.JSX.Element | null {
               <button
                 key={profile.id}
                 type="button"
+                aria-pressed={workspace?.permissionProfile === profile.id}
                 className={workspace?.permissionProfile === profile.id ? 'active' : ''}
                 disabled={!workspace}
                 onClick={() => void updateWorkspace({ permissionProfile: profile.id })}
@@ -164,6 +168,7 @@ export function SettingsPanel(): React.JSX.Element | null {
               <button
                 key={entry.id}
                 type="button"
+                aria-pressed={workspace?.sandbox === entry.id || (!workspace?.sandbox && entry.id === 'off')}
                 className={workspace?.sandbox === entry.id || (!workspace?.sandbox && entry.id === 'off') ? 'active' : ''}
                 disabled={!workspace}
                 onClick={() => void updateWorkspace({ sandbox: entry.id })}

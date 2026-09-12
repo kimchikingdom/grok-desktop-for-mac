@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 export type VirtualLayout = {
   keys: string[];
@@ -16,6 +16,41 @@ type VirtualListProps<T> = {
   onLayout?: (layout: VirtualLayout) => void;
 };
 
+/**
+ * One row. It keeps watching its own height: a row can grow long after it is
+ * rendered — a web font lands, an image decodes, someone opens the thought
+ * block — and a stale height would let the next row overlap this one's text.
+ */
+function VirtualRow({
+  top,
+  measure,
+  children,
+}: {
+  top: number;
+  measure: (height: number) => void;
+  children: ReactNode;
+}): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  const latest = useRef(measure);
+  latest.current = measure;
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const report = () => latest.current(Math.round(node.getBoundingClientRect().height));
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div className="virtual-row" style={{ position: 'absolute', top, left: 0, right: 0 }} ref={ref}>
+      {children}
+    </div>
+  );
+}
+
 export function VirtualList<T>({
   items,
   getKey,
@@ -27,8 +62,10 @@ export function VirtualList<T>({
 }: VirtualListProps<T>): React.JSX.Element {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(600);
-  const measured = useRef(new Map<string, number>());
-  const [, bump] = useState(0);
+  // Heights live in state, not a ref: the offsets below are memoised, and a ref
+  // would leave them stale when a row is remeasured without anything else
+  // changing — the rows would then overlap.
+  const [measured, setMeasured] = useState<ReadonlyMap<string, number>>(() => new Map());
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -49,12 +86,22 @@ export function VirtualList<T>({
     };
   }, [scrollRef]);
 
+  const remember = useCallback((key: string, height: number) => {
+    if (height <= 0) return;
+    setMeasured((current) => {
+      if (current.get(key) === height) return current;
+      const next = new Map(current);
+      next.set(key, height);
+      return next;
+    });
+  }, []);
+
   const { offsets, total, start, end } = useMemo(() => {
     const offsets: number[] = [];
     let cursor = 0;
     for (const item of items) {
       offsets.push(cursor);
-      cursor += measured.current.get(getKey(item)) ?? estimateSize(item);
+      cursor += measured.get(getKey(item)) ?? estimateSize(item);
     }
     const startPx = Math.max(0, scrollTop - overscan);
     const endPx = scrollTop + viewport + overscan;
@@ -70,7 +117,7 @@ export function VirtualList<T>({
       }
     }
     return { offsets, total: cursor, start, end };
-  }, [estimateSize, getKey, items, overscan, scrollTop, viewport]);
+  }, [estimateSize, getKey, items, measured, overscan, scrollTop, viewport]);
 
   useEffect(() => {
     onLayout?.({ keys: items.map((item) => getKey(item)), offsets, total });
@@ -82,21 +129,9 @@ export function VirtualList<T>({
         const index = start + sliceIndex;
         const key = getKey(item);
         return (
-          <div
-            key={key}
-            className="virtual-row"
-            style={{ position: 'absolute', top: offsets[index] ?? 0, left: 0, right: 0 }}
-            ref={(node) => {
-              if (!node) return;
-              const height = Math.round(node.getBoundingClientRect().height);
-              if (height > 0 && measured.current.get(key) !== height) {
-                measured.current.set(key, height);
-                bump((value) => value + 1);
-              }
-            }}
-          >
+          <VirtualRow key={key} top={offsets[index] ?? 0} measure={(height) => remember(key, height)}>
             {renderItem(item)}
-          </div>
+          </VirtualRow>
         );
       })}
     </div>

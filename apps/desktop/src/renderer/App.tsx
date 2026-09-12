@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { canFrameLocalhost } from '@grok-desktop/shared';
 import { ChatStream } from './components/ChatStream.js';
 import { Composer } from './components/Composer.js';
 import { ReviewPanel } from './components/ReviewPanel.js';
@@ -230,7 +231,18 @@ function LocalhostPreview(): React.JSX.Element | null {
           </button>
         </div>
       </header>
-      <iframe className="localhost-frame" src={url} title="로컬 미리보기" sandbox="allow-scripts" />
+      {canFrameLocalhost(url) ? (
+        <iframe className="localhost-frame" src={url} title="로컬 미리보기" sandbox="allow-scripts" />
+      ) : (
+        <div className="preview-unsupported">
+          <p className="muted small">
+            IPv6 루프백(<code>[::1]</code>)은 앱 안에서 열 수 없습니다. 브라우저에서 여세요.
+          </p>
+          <button type="button" onClick={() => void window.grokDesktop.external.openLocalhost({ url })}>
+            브라우저에서 열기
+          </button>
+        </div>
+      )}
     </section>
   );
 }

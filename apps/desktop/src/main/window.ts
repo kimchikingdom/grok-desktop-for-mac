@@ -45,7 +45,9 @@ function contentSecurityPolicy(): string {
     "media-src 'self' data:",
     "font-src 'self'",
     `connect-src ${connect}`,
-    "frame-src http://127.0.0.1:* http://localhost:* http://[::1]:*",
+    // Chromium drops a bracketed IPv6 host from a source list, so [::1] cannot
+    // be named here; the preview pane sends those URLs to the browser instead.
+    "frame-src http://127.0.0.1:* http://localhost:*",
     "form-action 'none'",
     "frame-ancestors 'none'",
     "base-uri 'none'",

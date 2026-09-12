@@ -12,8 +12,8 @@ Phase 7(배포)에서 사용한다. Phase 1–5 구현 시점에는 서명·공�
 - [ ] `pnpm test:e2e`
 - [ ] `pnpm build` 후 `apps/desktop/out/{main,preload,renderer}` 생성 확인
 - [ ] 실제 Grok CLI로 수동 수직 흐름 1회: 폴더 열기 → 질문 → 파일 읽기 → 수정 승인 → diff 확인 → 테스트 명령 승인 → 결과 확인 → 중단 → 재시작
-- [ ] 모든 버튼 상호작용 점검 (사이드바·헤더·채팅·입력창·리뷰·오버레이). 항목은 [UNIMPLEMENTED.md](UNIMPLEMENTED.md) 「다음에 할 것」
-- [ ] 남은 사용량 표시 (429 이전이라도 공식 값이 있으면 헤더에 잔여). 항목은 [UNIMPLEMENTED.md](UNIMPLEMENTED.md)
+- [x] 모든 버튼 상호작용 점검 (사이드바·헤더·채팅·입력창·리뷰·오버레이) — 2026-09-12, 15개 화면 지적 0건. 결과는 [UNIMPLEMENTED.md](UNIMPLEMENTED.md) 「끝낸 점검」
+- [ ] 남은 사용량 표시 (429 이전이라도 공식 값이 있으면 헤더에 잔여). 항목은 [UNIMPLEMENTED.md](UNIMPLEMENTED.md) 「다음에 할 것」
 
 ## 2. 보안 확인
 
