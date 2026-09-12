@@ -18,6 +18,7 @@
     "test:watch": "vitest",
     "build": "pnpm --filter @grok-desktop/desktop build",
     "package:mac": "pnpm --filter @grok-desktop/desktop package:mac",
+    "package:win": "pnpm --filter @grok-desktop/desktop package:win",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:security"
   },
   "devDependencies": {

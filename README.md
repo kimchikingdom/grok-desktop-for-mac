@@ -127,14 +127,15 @@ The source of truth for a conversation is the CLI's own log at
 only for events the CLI log does not carry, such as approvals and file changes.
 
 - CLI conversation log: `~/.grok/sessions/` (relocatable with `GROK_HOME`)
-- Sessions, workspaces, approval history: `~/Library/Application Support/Grok Desktop/metadata.json` (mode 0600)
-- UI transcript cache (fallback): `~/Library/Application Support/Grok Desktop/sessions/<session-id>.json`
-- App-only overlay: `~/Library/Application Support/Grok Desktop/overlays/<session-id>.jsonl`
-- Diagnostic log: `~/Library/Application Support/Grok Desktop/logs/grok-desktop.log` (mode 0600)
+App data lives under `~/Library/Application Support/@grok-desktop/desktop/` — Electron derives that
+folder from the package name, and it is the same for `pnpm dev` and for the packaged app, which
+ships no `productName`. (The `Grok Desktop` folder you may also see there holds nothing but
+Chromium's own `Local State`.)
 
-Those paths are for the packaged app, whose name is `Grok Desktop`. Running from source with
-`pnpm dev` uses the workspace package name instead, so the same files live under
-`~/Library/Application Support/@grok-desktop/desktop/`.
+- Sessions, workspaces, approval history: `<app data>/metadata.json` (mode 0600)
+- UI transcript cache (fallback): `<app data>/sessions/<session-id>.json`
+- App-only overlay: `<app data>/overlays/<session-id>.jsonl`
+- Diagnostic log: `<app data>/logs/grok-desktop.log` (mode 0600)
 
 The app never stores auth tokens. xAI authentication is handled entirely by the Grok CLI.
 
