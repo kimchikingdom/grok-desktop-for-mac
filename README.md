@@ -9,7 +9,13 @@
 
 A local agent desktop app that stays inside the folder you pick. It drives the official
 **Grok Build CLI** as an ACP (Agent Client Protocol) agent, and every file edit or shell command
-goes through your approval first.
+the CLI asks about goes through your approval first.
+
+One caveat worth knowing up front: if your `~/.grok/config.toml` sets
+`[ui] permission_mode = "always-approve"` (or another mode that skips asking), the CLI approves its
+own tools and never asks this app, so commands it runs itself never reach an approval card. The CLI
+offers no per-run override, so the app detects the setting and says so in the header instead of
+implying a gate that is not there.
 
 This is not a WebView wrapper around `grok.com`. The whole loop — read files → propose changes →
 approve a diff → run → inspect results — happens locally.

@@ -502,6 +502,14 @@ select:hover:not(:disabled) {
   border-radius: 50%;
   background: currentColor;
 }
+/* The CLI can be configured to approve its own tools, which bypasses this app's
+   approval cards. The header says so rather than letting the UI imply a gate
+   that is not there. */
+.status-pill.cli-auto-approve {
+  background: var(--danger-soft, rgba(220, 38, 38, 0.12));
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
 .status-pill.running {
   color: var(--ring);
   background: var(--ring-soft);

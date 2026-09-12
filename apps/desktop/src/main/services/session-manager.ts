@@ -65,6 +65,7 @@ import { composePromptText } from './prompt-compose.js';
 import { evaluatePermission, grantKeyFor } from './permission-engine.js';
 import type { MetadataStore } from './store.js';
 import type { TranscriptStore } from './transcript.js';
+import { readSessionUsage } from './usage.js';
 
 function extensionFailure(action: string, result: Extract<TryRequestResult, { ok: false }>): string {
   if (result.code === JSON_RPC_ERRORS.methodNotFound) {
@@ -85,6 +86,8 @@ type PendingPermission = {
 type LiveSession = {
   id: string;
   grokSessionId: string;
+  /** Path to the CLI binary, kept so usage can be read back after a turn. */
+  binaryPath: string;
   workspace: WorkspaceRecord;
   mode: WorkMode;
   connection: GrokAgentConnection;
@@ -201,6 +204,7 @@ export class SessionManager {
         cwd,
         items: [],
         changeSummaries: [],
+        binaryPath: args.binaryPath,
         usage: initialUsage(connection, args.model),
       });
 
@@ -208,7 +212,11 @@ export class SessionManager {
       this.#broadcast(record.id, { type: 'session-status', sessionId: record.id, status: 'idle' });
       this.#publishSummary(record.id);
       const live = this.#sessions.get(record.id);
-      if (live) this.#publishModels(live);
+      if (live) {
+        this.#publishModels(live);
+        // A brand new CLI session has nothing recorded yet, but a reused id does.
+        void this.#refreshSessionUsage(live);
+      }
       logger.info('세션을 시작했습니다.', {
         sessionId: record.id,
         cwd,
@@ -304,6 +312,7 @@ export class SessionManager {
         cwd,
         items: persistedItems.length > 0 ? persistedItems : cache.items,
         changeSummaries: persisted.changes.length > 0 ? persisted.changes : cache.changes,
+        binaryPath: args.binaryPath,
         usage: initialUsage(connection, args.model ?? record.model),
       };
       this.#sessions.set(record.id, live);
@@ -313,6 +322,7 @@ export class SessionManager {
       this.#broadcast(record.id, { type: 'session-status', sessionId: record.id, status: 'idle' });
       this.#publishSummary(record.id);
       this.#publishModels(live);
+      void this.#refreshSessionUsage(live);
       logger.info('세션을 재개했습니다.', {
         sessionId: record.id,
         agentContext,
@@ -654,6 +664,9 @@ export class SessionManager {
       });
       session.usage.turnsThisSession += 1;
       this.#publishUsage(session);
+      // The CLI writes usage as the turn closes; reading it must not hold up the
+      // UI, so the header updates again once the numbers land.
+      void this.#refreshSessionUsage(session);
       await this.#mergeGitChanges(session);
       if (!this.#isCurrent(session)) return;
       this.#finishTurn(session, 'idle');
@@ -704,6 +717,15 @@ export class SessionManager {
 
   #publishUsage(session: LiveSession): void {
     this.#publish({ type: 'usage', sessionId: session.id, usage: { ...session.usage } });
+  }
+
+  /** Real token counts for this session, straight from `grok usage`. */
+  async #refreshSessionUsage(session: LiveSession): Promise<void> {
+    const totals = await readSessionUsage(session.binaryPath, session.grokSessionId, this.grokHomeDir);
+    if (!totals) return;
+    if (this.#sessions.get(session.id) !== session) return;
+    session.usage.session = totals;
+    this.#publishUsage(session);
   }
 
   #finishTurn(session: LiveSession, status: 'idle' | 'failed'): void {

@@ -54,6 +54,20 @@ export type ModelInfo = {
  * endpoint, so `quota` is only populated after the API reports a limit, while
  * `contextTokens` is known up front from the model catalogue.
  */
+/** What `grok usage <session-id>` persisted for one CLI session. */
+export type SessionUsageTotals = {
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedReadTokens: number;
+  reasoningTokens: number;
+  modelCalls: number;
+  /** Turns the CLI recorded, which includes turns from before this app opened it. */
+  turnCount: number;
+  primaryModelId?: string;
+  updatedAt: string;
+};
+
 export type UsageSnapshot = {
   modelId?: string;
   contextTokens?: number;
@@ -63,6 +77,8 @@ export type UsageSnapshot = {
     limitTokens: number;
     observedAt: string;
   };
+  /** Real token counts the CLI recorded for this session, once it has any. */
+  session?: SessionUsageTotals;
   /** Turns completed in this session since the app started it. */
   turnsThisSession: number;
 };
@@ -134,6 +150,12 @@ export type RuntimeStatus = {
   detail?: string;
   installCommand: string;
   docsUrl: string;
+  /**
+   * `[ui] permission_mode` from the CLI's own config. When it auto-approves,
+   * the CLI never asks the app and the approval cards cannot gate its tools.
+   */
+  cliPermissionMode?: string;
+  cliAutoApproves?: boolean;
 };
 
 export type AuthStatus = {

@@ -25,6 +25,7 @@ export function Header(): React.JSX.Element {
   const currentModelId = useStore((state) => state.currentModelId);
   const setModel = useStore((state) => state.setModel);
   const usage = useStore((state) => state.usage);
+  const runtime = useStore((state) => state.runtime);
   const busy = useStore((state) => state.busy);
   const openExternal = useStore((state) => state.openExternal);
   const chooseFolder = useStore((state) => state.chooseFolder);
@@ -68,6 +69,14 @@ export function Header(): React.JSX.Element {
       <div className="header-right">
         {status === 'running' || status === 'waiting-approval' || status === 'failed' || status === 'starting' ? (
           <span className={`status-pill ${status}`}>{STATUS_LABEL[status]}</span>
+        ) : null}
+        {runtime?.cliAutoApproves ? (
+          <span
+            className="status-pill cli-auto-approve"
+            title={`grok CLI 설정이 ${runtime.cliPermissionMode}입니다. CLI가 자기 도구를 스스로 승인하므로, 명령 실행 같은 작업은 이 앱의 승인 카드를 거치지 않습니다. ~/.grok/config.toml 의 [ui] permission_mode 를 바꾸면 앱이 다시 물어봅니다.`}
+          >
+            CLI 자동 승인
+          </span>
         ) : null}
         <button
           type="button"

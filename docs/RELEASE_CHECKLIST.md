@@ -11,9 +11,9 @@ Phase 7(배포)에서 사용한다. Phase 1–5 구현 시점에는 서명·공�
 - [ ] `pnpm test:security`
 - [ ] `pnpm test:e2e`
 - [ ] `pnpm build` 후 `apps/desktop/out/{main,preload,renderer}` 생성 확인
-- [ ] 실제 Grok CLI로 수동 수직 흐름 1회: 폴더 열기 → 질문 → 파일 읽기 → 수정 승인 → diff 확인 → 테스트 명령 승인 → 결과 확인 → 중단 → 재시작
+- [x] 실제 Grok CLI로 수동 수직 흐름 1회: 폴더 열기 → 질문 → 파일 읽기 → 수정 승인 → diff 확인 → 테스트 명령 승인 → 결과 확인 → 중단 → 재시작 — 2026-09-12, CLI 1.0.30 / grok-4.6 으로 완주. 승인 카드에 +1 −1 미리보기가 뜨고 승인 후 디스크에 반영됐다. 명령 실행만 승인 카드를 거치지 않았는데, 이 기계의 CLI 설정(`permission_mode = "always-approve"`) 때문이다. [SECURITY_MODEL.md](SECURITY_MODEL.md) 7절 참고 — 기본 설정에서 다시 한 번 확인할 것
 - [x] 모든 버튼 상호작용 점검 (사이드바·헤더·채팅·입력창·리뷰·오버레이) — 2026-09-12, 15개 화면 지적 0건. 결과는 [UNIMPLEMENTED.md](UNIMPLEMENTED.md) 「끝낸 점검」
-- [ ] 남은 사용량 표시 (429 이전이라도 공식 값이 있으면 헤더에 잔여). 항목은 [UNIMPLEMENTED.md](UNIMPLEMENTED.md) 「다음에 할 것」
+- [x] 사용량 표시 — `grok usage <세션ID>` 가 세션·턴 단위 토큰을 기록해 두므로 그 값을 헤더에 보여 준다. 구독 잔여는 여전히 429 본문에서만 오고, 그 전까지 게이지는 비어 있다 (추정치를 만들지 않는다). [UNIMPLEMENTED.md](UNIMPLEMENTED.md) 「끝낸 점검」
 
 ## 2. 보안 확인
 

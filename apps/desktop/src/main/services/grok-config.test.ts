@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { parseMcpServers, parseSkillDisabled, setMcpEnabled, setSkillDisabled } from './grok-config.js';
+import {
+  autoApprovesEverything,
+  parseMcpServers,
+  parsePermissionMode,
+  parseSkillDisabled,
+  setMcpEnabled,
+  setSkillDisabled,
+} from './grok-config.js';
 
 const SAMPLE = `
 [models]
@@ -43,3 +50,36 @@ describe('grok config edits', () => {
     expect(parseSkillDisabled(on)).toEqual(['review']);
   });
 });
+
+describe('parsePermissionMode', () => {
+  const config = [
+    '[cli]',
+    'installer = "internal"',
+    '',
+    '[ui]',
+    'compact_mode = false',
+    'permission_mode = "always-approve"',
+    '',
+    '[models]',
+    'default = "grok-4.6"',
+  ].join('\n');
+
+  it('reads the mode out of the [ui] block', () => {
+    expect(parsePermissionMode(config)).toBe('always-approve');
+  });
+
+  it('returns nothing when the key or the block is absent', () => {
+    expect(parsePermissionMode('[ui]\ncompact_mode = false\n')).toBeNull();
+    expect(parsePermissionMode('[models]\npermission_mode = "ask"\n')).toBeNull();
+    expect(parsePermissionMode('')).toBeNull();
+  });
+
+  it('flags the modes that skip asking', () => {
+    expect(autoApprovesEverything('always-approve')).toBe(true);
+    expect(autoApprovesEverything('bypassPermissions')).toBe(true);
+    expect(autoApprovesEverything('yolo')).toBe(true);
+    expect(autoApprovesEverything('ask')).toBe(false);
+    expect(autoApprovesEverything('default')).toBe(false);
+    expect(autoApprovesEverything(null)).toBe(false);
+  });
+})

@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { detectAuthStatus, detectRuntime } from '@grok-desktop/acp-client';
 import { assertSafeExternalUrl, maskSecrets, sanitizeEnvironment } from '@grok-desktop/security';
 import {
@@ -9,6 +11,8 @@ import {
   type InstallInstructions,
   type RuntimeStatus,
 } from '@grok-desktop/shared';
+import { grokHome } from './cli-sessions.js';
+import { autoApprovesEverything, parsePermissionMode } from './grok-config.js';
 import { logger } from './logger.js';
 
 const LOGIN_OUTPUT_WINDOW_MS = 20_000;
@@ -31,7 +35,13 @@ export class RuntimeService {
   ) {}
 
   async refresh(): Promise<RuntimeStatus> {
-    const status = await detectRuntime();
+    const detected = await detectRuntime();
+    const cliPermissionMode = await readCliPermissionMode();
+    const status: RuntimeStatus = {
+      ...detected,
+      cliPermissionMode: cliPermissionMode ?? undefined,
+      cliAutoApproves: autoApprovesEverything(cliPermissionMode),
+    };
     const changed = JSON.stringify(status) !== JSON.stringify(this.#status);
     this.#status = status;
     if (changed) this.onStatusChange(status);
@@ -192,4 +202,17 @@ export function parseLoginOutput(output: string): { url?: string; code?: string 
   if (urlMatch?.[0]) result.url = urlMatch[0].replace(/[.,)]+$/, '');
   if (codeMatch?.[1]) result.code = codeMatch[1];
   return result;
+}
+
+/**
+ * The CLI's own permission setting. Read fresh on every runtime refresh because
+ * the user can change it in another terminal while the app is open.
+ */
+async function readCliPermissionMode(): Promise<string | null> {
+  try {
+    const toml = await readFile(path.join(grokHome(), 'config.toml'), 'utf8');
+    return parsePermissionMode(toml);
+  } catch {
+    return null;
+  }
 }

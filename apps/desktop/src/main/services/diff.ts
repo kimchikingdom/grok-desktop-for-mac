@@ -378,7 +378,10 @@ export async function collectGitChangesForScope(
 ): Promise<{ relPath: string; status: FileChangeSummary['status'] }[]> {
   try {
     if (scope === 'working' || scope === 'staged') {
-      const { stdout } = await execFileAsync('git', ['status', '--porcelain=v1', '--no-renames'], {
+      // `-uall` lists untracked files one by one. Without it Git collapses a new
+      // directory into a single `dir/` row, which has no diff to open and no
+      // line counts to show.
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain=v1', '--no-renames', '-uall'], {
         cwd: canonicalRoot,
         timeout: 5_000,
         env: sanitizeEnvironment(process.env),

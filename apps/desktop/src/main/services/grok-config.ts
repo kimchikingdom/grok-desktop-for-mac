@@ -30,6 +30,24 @@ export function parseSkillDisabled(toml: string): string[] {
   return [...list[1].matchAll(/"([^"]+)"/g)].map((entry) => entry[1]).filter((name): name is string => Boolean(name));
 }
 
+/**
+ * `[ui] permission_mode` in ~/.grok/config.toml. When it auto-approves, the CLI
+ * runs its own tools without ever asking this app, so the approval cards stop
+ * being the gate the UI claims they are. Only reported, never rewritten: it is
+ * the user's CLI setting, and the CLI has no flag to override it per run.
+ */
+export function parsePermissionMode(toml: string): string | null {
+  const block = /\[ui\]([\s\S]*?)(?=\n\[|$)/.exec(toml);
+  const value = /^\s*permission_mode\s*=\s*"([^"]*)"/m.exec(block?.[1] ?? '');
+  return value?.[1] ?? null;
+}
+
+/** True for the modes that let the CLI skip asking (`always-approve`, `bypass*`, `yolo`). */
+export function autoApprovesEverything(mode: string | null): boolean {
+  if (!mode) return false;
+  return /always.?approve|bypass|yolo|accept.?edits|full.?auto/i.test(mode);
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

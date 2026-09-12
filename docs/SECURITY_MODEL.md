@@ -83,6 +83,7 @@ renderer가 손상되어도 얻을 수 있는 최대 권한은 `packages/shared/
 
 ## 7. 아직 남은 위험
 
+- **CLI 자체의 자동 승인**: `~/.grok/config.toml` 의 `[ui] permission_mode` 가 `always-approve` 같은 값이면 CLI 가 자기 도구를 스스로 승인하고 앱에 `session/request_permission` 을 보내지 않는다. 그러면 CLI 가 직접 실행하는 셸 명령은 승인 카드를 거치지 않는다 (ACP `fs/write_text_file` 로 오는 파일 쓰기는 앱이 여전히 가로챈다). `grok agent stdio` 에는 이를 무시하고 매번 묻게 하는 플래그가 없어서, 앱은 설정을 읽어 헤더에 「CLI 자동 승인」으로 경고만 한다.
 - **prompt injection**: 저장소에 심어진 지시문이 에이전트를 유도할 수 있다. 완화 수단은 승인 UI와 경로 봉쇄이며, 자동 허용 범위를 넓히면 그만큼 위험이 커진다.
 - **CLI 자체의 파일 쓰기**: 에이전트가 `fs/write_text_file` 대신 자체 도구로 파일을 바꾸면 앱은 스냅샷을 갖지 못한다. 이 경우 변경 목록은 Git 상태로 보완하고 되돌리기는 제공하지 않는다.
 - **코드 서명**: 현재 빌드는 서명·공증되지 않았다. `RELEASE_CHECKLIST.md` 참고.
