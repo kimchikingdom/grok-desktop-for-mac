@@ -23,6 +23,10 @@ const DIR_RULES: SensitiveRule[] = [
   { test: /(^|\/)\.docker(\/|$)/, reason: 'Docker 자격 증명 디렉터리입니다.' },
   { test: /(^|\/)\.grok(\/|$)/, reason: 'Grok CLI 자격 증명과 세션이 있는 디렉터리입니다.' },
   { test: /(^|\/)Keychains(\/|$)/, reason: 'macOS 키체인 디렉터리입니다.' },
+  // Writing .git/config or .git/hooks/* is code execution: the app runs git in
+  // this repository, and git runs whatever those files name. Nothing the user
+  // edits by hand lives here — .gitignore and .gitattributes are outside .git/.
+  { test: /(^|\/)\.git(\/|$)/, reason: 'Git 내부 디렉터리입니다. 훅과 설정이 명령 실행으로 이어집니다.' },
 ];
 
 export type SensitivityVerdict = { sensitive: boolean; reasons: string[] };

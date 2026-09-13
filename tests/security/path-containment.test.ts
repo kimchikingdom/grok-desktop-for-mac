@@ -128,3 +128,22 @@ describe('git helpers that run inside the workspace', () => {
     await expect(gitRestoreFile(workspace, 'src/index.ts', 'branch')).resolves.toBe(false);
   });
 })
+
+describe('홈 디렉터리를 품은 폴더', () => {
+  it('모든 사용자의 홈이 모인 폴더는 열 수 없다', () => {
+    // Blocking ~ is pointless if /Users can be opened instead — that is every
+    // home at once, including .ssh and .aws.
+    expect(classifyWorkspaceRoot('/Users', '/Users/me').verdict).toBe('blocked');
+    expect(classifyWorkspaceRoot('/home', '/home/me').verdict).toBe('blocked');
+  });
+
+  it('다른 사용자의 홈은 확인을 받는다', () => {
+    const verdict = classifyWorkspaceRoot('/Users/someone-else', '/Users/me');
+    expect(verdict.verdict).toBe('warn');
+    expect(verdict.reasons.join(' ')).toContain('다른 사용자');
+  });
+
+  it('평범한 프로젝트 폴더는 그대로 통과한다', () => {
+    expect(classifyWorkspaceRoot('/Users/me/projects/app', '/Users/me').verdict).toBe('ok');
+  });
+})

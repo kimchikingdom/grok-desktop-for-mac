@@ -120,6 +120,9 @@ const HOME_BLOCKED_SUFFIXES = [
 
 const HOME_WARN_SUFFIXES = ['Desktop', 'Documents', 'Downloads', 'Movies', 'Music', 'Pictures'];
 
+/** Folders that hold every account's home directory. */
+const HOME_ROOTS = ['/Users', '/home', 'C:\\Users'];
+
 function normalizeForCompare(p: string): string {
   const resolved = path.resolve(p);
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
@@ -147,6 +150,20 @@ export function classifyWorkspaceRoot(
 
   if (root === home) {
     return { verdict: 'blocked', reasons: ['사용자 홈 디렉터리 전체는 작업공간으로 열 수 없습니다.'] };
+  }
+
+  // Blocking the home directory means little if the folder that holds every
+  // home can be opened instead: /Users is all of them at once.
+  const insideHomeRoot = HOME_ROOTS.some(
+    (entry) => normalizeForCompare(entry) === normalizeForCompare(path.dirname(root)),
+  );
+  if (HOME_ROOTS.some((entry) => normalizeForCompare(entry) === normalizeForCompare(root))) {
+    return { verdict: 'blocked', reasons: ['사용자 홈들이 모여 있는 디렉터리는 작업공간으로 열 수 없습니다.'] };
+  }
+  if (insideHomeRoot && root !== home) {
+    // Usually another account's home; occasionally a shared project folder, so
+    // this asks instead of refusing.
+    reasons.push('다른 사용자의 홈 디렉터리일 수 있습니다.');
   }
 
   // macOS puts the per-user temp directory under /private/var, which the system

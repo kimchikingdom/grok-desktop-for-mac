@@ -46,7 +46,7 @@ Phase 7(배포)에서 사용한다. Phase 1–5 구현 시점에는 서명·공�
 ## 5. 문서
 
 - [x] README의 요구사항(Node LTS, Grok CLI 설치 명령)이 최신인지 — `.nvmrc` 22.11.0, pnpm 11, 명령 표 모두 일치
-- [x] 데이터 저장 위치 명시 — 실제 경로는 개발·패키징본 모두 `~/Library/Application Support/@grok-desktop/desktop/` 이다 (패키징본에 `productName` 이 없어 패키지 이름이 그대로 쓰인다). 패키징본을 띄워 확인했고 README를 그 값으로 고쳤다
+- [x] 데이터 저장 위치 명시 — `productName` 을 넣어 개발·패키징본 모두 `~/Library/Application Support/Grok Desktop/` 을 쓴다. 예전 `@grok-desktop/desktop/` 폴더의 데이터는 첫 실행 때 옮겨 온다 (실제 앱에서 세션 17개 이전 확인)
 - [x] 알려진 제한 사항 갱신 (`SECURITY_MODEL.md` 7절) — IPv6 루프백 미리보기, 상위 저장소 안의 작업공간, 핸들러 단위 봉쇄 테스트 부재를 추가
 - [x] 지원하는 Grok CLI 버전 범위 기록 — ACP 프로토콜 1, 최소 버전 강제 없음, 1.0.3~1.0.30에서 확인 (README)
 

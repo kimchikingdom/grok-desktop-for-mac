@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { access, mkdir, open, writeFile } from 'node:fs/promises';
+import { access, mkdir, open, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   GrokAgentConnection,
@@ -477,7 +477,6 @@ export class SessionManager {
     if (record.grokSessionId && workspace) {
       const cli = await findCliSession(workspace.canonicalRootPath, record.grokSessionId, this.grokHomeDir);
       if (cli) {
-        const { readFile } = await import('node:fs/promises');
         const { join } = await import('node:path');
         // The raw CLI log can hold whatever the agent read (.env values, tokens
         // in command output), and this export goes to the clipboard.
@@ -785,7 +784,11 @@ export class SessionManager {
     const mutating = pending.view.kind === 'edit' || pending.view.kind === 'delete' || pending.view.kind === 'move';
     if (mutating) {
       for (const location of pending.locations) {
-        if (location.relPath) session.writeAllowance.add(location.relPath);
+        // The path list comes from the agent's own rawInput, so approving one
+        // edit must not hand out a free pass to a credential file it listed
+        // alongside. Sensitive paths always get their own card.
+        if (!location.relPath || classifySensitivity(location.relPath).sensitive) continue;
+        session.writeAllowance.add(location.relPath);
       }
     }
 
@@ -843,6 +846,7 @@ export class SessionManager {
       kind,
       locations,
       command,
+      tool: params.toolCall.title ?? undefined,
       sessionGrants: session.grants,
     });
 
@@ -943,10 +947,15 @@ export class SessionManager {
         () => null,
       );
       if (!described?.insideWorkspace || !described.relPath) continue;
+      // The "before" side comes from disk, never from the agent. `oldText` is
+      // the agent's claim about the current file, and a wrong one — honest
+      // mistake or not — would show the user a small, harmless-looking diff for
+      // a change that actually destroys the file.
+      const onDisk = await readFile(described.canonicalPath, 'utf8').catch(() => null);
       return buildDiffPreview(
         described.relPath,
         described.canonicalPath,
-        content.oldText ?? null,
+        onDisk ?? content.oldText ?? null,
         content.newText,
       );
     }
@@ -1020,8 +1029,10 @@ export class SessionManager {
     const sensitivity = classifySensitivity(relPath);
     const pathGrant = grantKeyFor('edit', relPath);
     const trustedAuto = profile === 'trusted' && !sensitivity.sensitive;
+    // A sensitive file is asked about every time, whatever was approved before.
     const preApproved =
-      trustedAuto || session.writeAllowance.has(relPath) || session.grants.has(pathGrant);
+      !sensitivity.sensitive &&
+      (trustedAuto || session.writeAllowance.has(relPath) || session.grants.has(pathGrant));
     if (!preApproved) {
       const before = await readFileCapped(canonicalPath).catch(() => null);
       const approved = await this.#askSynthetic(session, {

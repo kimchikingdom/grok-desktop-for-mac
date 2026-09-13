@@ -65,6 +65,9 @@ export type ConnectionOptions = {
 
 const DEFAULT_ARGS = ['agent', 'stdio'];
 
+/** Longest stderr line kept, and the cap on an unterminated one. */
+const MAX_STDERR_LINE_CHARS = 8_000;
+
 export type TryRequestResult =
   | { ok: true; value: unknown }
   | { ok: false; code?: number; message: string };
@@ -296,11 +299,17 @@ export class GrokAgentConnection extends EventEmitter {
       const line = this.#stderrBuffer.slice(0, index);
       this.#stderrBuffer = this.#stderrBuffer.slice(index + 1);
       if (line.trim()) {
-        this.#stderrTail.push(line);
+        const clipped = line.length > MAX_STDERR_LINE_CHARS ? `${line.slice(0, MAX_STDERR_LINE_CHARS)}…` : line;
+        this.#stderrTail.push(clipped);
         if (this.#stderrTail.length > 50) this.#stderrTail.shift();
-        this.#options.delegate.onStderr(line);
+        this.#options.delegate.onStderr(clipped);
       }
       index = this.#stderrBuffer.indexOf('\n');
+    }
+    // A child that never emits a newline would otherwise grow this buffer without
+    // limit, and everything in it is later run through the secret masker.
+    if (this.#stderrBuffer.length > MAX_STDERR_LINE_CHARS) {
+      this.#stderrBuffer = this.#stderrBuffer.slice(-MAX_STDERR_LINE_CHARS);
     }
   }
 

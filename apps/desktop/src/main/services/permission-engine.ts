@@ -16,6 +16,8 @@ export type EvaluationInput = {
   kind: ToolKind;
   locations: ToolLocation[];
   command?: string;
+  /** Tool name as the agent reported it; scopes the grant for unclassified tools. */
+  tool?: string;
   sessionGrants: ReadonlySet<string>;
 };
 
@@ -34,7 +36,13 @@ const MUTATING_KINDS: ToolKind[] = ['edit', 'delete', 'move', 'execute', 'fetch'
  */
 export function evaluatePermission(input: EvaluationInput): PermissionEvaluation {
   const reasons: string[] = [];
-  let grantKey = grantKeyFor(input.kind);
+  // An unclassified tool keeps its own name in the key: 'other' covers every
+  // MCP tool and every kind the CLI invents, so one session grant must not
+  // stand in for all of them.
+  let grantKey =
+    input.kind === 'other' && input.tool
+      ? grantKeyFor(input.kind, input.tool)
+      : grantKeyFor(input.kind);
   let risk: RiskLevel = 'low';
   let alwaysAsk = false;
 

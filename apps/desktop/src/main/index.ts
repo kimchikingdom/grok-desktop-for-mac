@@ -10,6 +10,7 @@ import { SessionManager } from './services/session-manager.js';
 import { MetadataStore } from './services/store.js';
 import { OrphanRegistry } from './services/orphans.js';
 import { OverlayLog } from './services/overlay-log.js';
+import { migrateLegacyUserData } from './services/user-data.js';
 import { TranscriptStore } from './services/transcript.js';
 import { setDockBadge, TrayController } from './tray.js';
 import { applyDockIcon, createMainWindow } from './window.js';
@@ -117,8 +118,15 @@ function emit(event: SessionEvent): void {
 }
 
 async function bootstrap(): Promise<void> {
+  // Runs before anything opens a file under userData: the folder was renamed
+  // when the app gained a productName, and the old one still holds the history.
+  const carried = await migrateLegacyUserData(app.getPath('appData'), app.getPath('userData'));
+
   configureLogger(path.join(app.getPath('userData'), 'logs'));
   logger.info('Grok Desktop을 시작합니다.', { version: app.getVersion() });
+  if (carried.length > 0) {
+    logger.info('이전 데이터 폴더에서 옮겨 왔습니다.', { entries: carried.join(', ') });
+  }
 
   store = new MetadataStore(path.join(app.getPath('userData'), 'metadata.json'));
   await store.load();

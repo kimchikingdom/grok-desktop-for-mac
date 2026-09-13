@@ -29,22 +29,42 @@ function maxRisk(a: RiskLevel, b: RiskLevel): RiskLevel {
   return RISK_ORDER[a] >= RISK_ORDER[b] ? a : b;
 }
 
-/** Split a command line on shell operators so each segment can be judged alone. */
+/**
+ * Split a command line on shell operators so each segment can be judged alone.
+ * A bare `&` backgrounds the command before it, so what follows is a separate
+ * command and has to be judged separately — otherwise `ls & curl …` reads as a
+ * plain `ls`. `2>&1` and `&>` are redirections, not separators, so the `&` there
+ * is left alone.
+ */
 export function splitCommandSegments(command: string): string[] {
   return command
-    .split(/\|\||&&|[;\n|]/g)
+    .split(/\|\||&&|[;\n|()]|(?<![>&])&(?![&>])/g)
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
 }
 
 function tokenize(segment: string): string[] {
-  const tokens = segment.match(/"[^"]*"|'[^']*'|[^\s]+/g) ?? [];
+  // Redirections do not have to be space-separated: `bash<<<"curl x"` is one
+  // run of non-space characters, and without this the head would be read as the
+  // nonsense binary `bash<<<"curl`.
+  const spaced = segment.replace(/(<<<|<<|>>|[<>])/g, ' $1 ');
+  const tokens = spaced.match(/"[^"]*"|'[^']*'|[^\s]+/g) ?? [];
   return tokens.map((token) => token.replace(/^['"]|['"]$/g, ''));
 }
 
-/** Drop leading `env`/`VAR=value` prefixes to find the real executable. */
-function headOf(tokens: string[]): { name: string; args: string[] } {
+/**
+ * Wrappers that run whatever command follows them. The head has to be found on
+ * the far side, or `nohup curl …` looks like the unknown binary `nohup`.
+ */
+const COMMAND_WRAPPERS = new Set([
+  'nohup', 'time', 'timeout', 'gtimeout', 'nice', 'ionice', 'stdbuf', 'setsid',
+  'command', 'builtin', 'exec', 'xargs', 'watch', 'script', 'caffeinate',
+]);
+
+/** Drop leading `env`/`VAR=value` prefixes and wrappers to find the real executable. */
+function headOf(tokens: string[]): { name: string; args: string[]; wrappedBy?: string } {
   let index = 0;
+  let wrappedBy: string | undefined;
   while (index < tokens.length) {
     const token = tokens[index];
     if (token === undefined) break;
@@ -52,10 +72,26 @@ function headOf(tokens: string[]): { name: string; args: string[] } {
       index += 1;
       continue;
     }
+    const bare = token.split('/').pop() ?? token;
+    if (COMMAND_WRAPPERS.has(bare)) {
+      wrappedBy ??= bare;
+      index += 1;
+      // Skip the wrapper's own flags and its numeric argument (`timeout 5 …`).
+      while (index < tokens.length) {
+        const next = tokens[index];
+        if (next === undefined) break;
+        if (next.startsWith('-') || /^\d+(\.\d+)?[smhd]?$/.test(next)) {
+          index += 1;
+          continue;
+        }
+        break;
+      }
+      continue;
+    }
     break;
   }
   const name = tokens[index] ?? '';
-  return { name: name.split('/').pop() ?? name, args: tokens.slice(index + 1) };
+  return { name: name.split('/').pop() ?? name, args: tokens.slice(index + 1), wrappedBy };
 }
 
 const NETWORK_BINARIES = new Set(['curl', 'wget', 'nc', 'ncat', 'telnet', 'ssh', 'scp', 'sftp', 'rsync', 'ftp', 'httpie', 'http']);
@@ -69,7 +105,7 @@ const READ_ONLY_GIT = new Set(['status', 'diff', 'log', 'show', 'branch', 'blame
 
 function classifySegment(segment: string): CommandClassification {
   const tokens = tokenize(segment);
-  const { name, args } = headOf(tokens);
+  const { name, args, wrappedBy } = headOf(tokens);
   const categories = new Set<CommandCategory>();
   const reasons: string[] = [];
   let risk: RiskLevel = 'low';
@@ -168,8 +204,11 @@ function classifySegment(segment: string): CommandClassification {
     );
   }
 
-  if (['bash', 'sh', 'zsh', 'fish', 'ksh', 'dash'].includes(name) && args.some((a) => a === '-c' || a === '-lc')) {
-    flag('high', 'write', '셸이 문자열로 전달된 명령을 실행합니다.', true);
+  if (['bash', 'sh', 'zsh', 'fish', 'ksh', 'dash'].includes(name)) {
+    // `-c` is the usual form, but a here-string or redirected script feeds the
+    // shell just as much code: `bash <<< "curl …"`.
+    const fed = args.some((a) => a === '-c' || a === '-lc' || a === '<<<' || a === '<<' || a === '<');
+    if (fed) flag('high', 'write', '셸이 전달받은 문자열이나 스크립트를 실행합니다.', true);
   }
 
   if (['python', 'python3', 'node', 'ruby', 'perl', 'php', 'osascript'].includes(name) && args.some((a) => a === '-c' || a === '-e' || a === '--eval')) {
@@ -186,6 +225,10 @@ function classifySegment(segment: string): CommandClassification {
 
   if (READ_ONLY_BINARIES.has(name) && categories.size === 0) {
     flag('low', 'read', '읽기 전용 명령으로 판단했습니다.');
+  }
+
+  if (wrappedBy !== undefined) {
+    flag('medium', 'write', `다른 명령을 대신 실행하는 래퍼입니다 (${wrappedBy}).`);
   }
 
   // Anything we could not place is assumed to change something.
@@ -219,7 +262,8 @@ export function classifyCommand(command: string): CommandClassification {
     }
   }
 
-  if (/>>?\s*\S/.test(command)) {
+  // `2>&1` and `>&2` duplicate a file descriptor; they do not write a file.
+  if (/>>?\s*(?!&)\S/.test(command)) {
     categories.add('write');
     risk = maxRisk(risk, 'high');
     if (!reasons.includes('출력 리다이렉션으로 파일을 덮어씁니다.')) {
