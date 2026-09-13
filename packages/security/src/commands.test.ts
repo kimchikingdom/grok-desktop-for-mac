@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyCommand, splitCommandSegments } from './commands.js';
+import { classifyCommand, commandGrantKey, splitCommandSegments } from './commands.js';
 
 describe('splitCommandSegments', () => {
   it('splits on shell operators', () => {
@@ -135,5 +135,24 @@ describe('셸 문법으로 위험한 부분을 숨기려는 시도', () => {
     expect(judged('ls -la')).toEqual({ risk: 'low', alwaysAsk: false });
     expect(judged('git status')).toEqual({ risk: 'low', alwaysAsk: false });
     expect(judged('grep -rn foo src')).toEqual({ risk: 'low', alwaysAsk: false });
+  });
+})
+
+describe('commandGrantKey', () => {
+  it('짧은 명령은 그대로 키가 된다', () => {
+    expect(commandGrantKey('pnpm test')).toBe('pnpm test');
+    expect(commandGrantKey('  pnpm   test  ')).toBe('pnpm test');
+  });
+
+  it('앞부분만 같은 긴 명령이 같은 허가를 공유하지 않는다', () => {
+    // Approving one long command must not silently approve another that merely
+    // starts the same way.
+    const prefix = `echo ${'a'.repeat(500)}`;
+    expect(commandGrantKey(`${prefix} && ls`)).not.toBe(commandGrantKey(`${prefix} && rm -rf /`));
+  });
+
+  it('같은 명령은 같은 키를 준다', () => {
+    const long = `echo ${'b'.repeat(600)}`;
+    expect(commandGrantKey(long)).toBe(commandGrantKey(long));
   });
 })

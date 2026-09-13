@@ -1,10 +1,25 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, nativeTheme, shell } from 'electron';
 import { isSafeExternalUrl } from '@grok-desktop/security';
 import { logger } from './services/logger.js';
 
-const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL;
+/**
+ * Only honoured while running from source. In a packaged app this variable is
+ * attacker-supplied input: setting it would relax the CSP, switch DevTools on,
+ * and load a remote page with the preload bridge attached.
+ */
+const DEV_SERVER_URL = app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL;
+
+function appEntryPath(): string {
+  return path.join(__dirname, '../renderer/index.html');
+}
+
+/** The single page this window may show, as the URL Chromium reports for it. */
+function appEntryUrl(): string {
+  return pathToFileURL(appEntryPath()).toString();
+}
 
 /** Matches --bg in the renderer stylesheet for each theme. */
 const WINDOW_BACKGROUND = { dark: '#0d0d0d', light: '#f7f7f8' } as const;
@@ -101,7 +116,10 @@ export function createMainWindow(): BrowserWindow {
   });
 
   window.webContents.on('will-navigate', (event, url) => {
-    const allowed = DEV_SERVER_URL ? url.startsWith(DEV_SERVER_URL) : url.startsWith('file://');
+    // Any file:// used to pass, so dropping an .html file on the window would
+    // navigate to it — and that page would inherit the preload bridge. Only the
+    // one page this window was built to show is allowed.
+    const allowed = DEV_SERVER_URL ? url.startsWith(DEV_SERVER_URL) : url === appEntryUrl();
     if (!allowed) {
       event.preventDefault();
       logger.security('허용되지 않은 페이지 이동을 차단했습니다.', { url });
@@ -150,7 +168,7 @@ export function createMainWindow(): BrowserWindow {
   if (DEV_SERVER_URL) {
     void window.loadURL(DEV_SERVER_URL);
   } else {
-    void window.loadFile(path.join(__dirname, '../renderer/index.html'));
+    void window.loadFile(appEntryPath());
   }
 
   return window;

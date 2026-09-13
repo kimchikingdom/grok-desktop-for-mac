@@ -38,11 +38,14 @@ export function buildDiffPreview(
     else if (line.startsWith('-') && !line.startsWith('---')) deletions += 1;
   }
 
-  const truncated = patch.length > MAX_DIFF_CHARS;
+  // Mask before truncating. The other way round, a key that straddles the cut
+  // loses its END marker and no longer looks like a key, so it is stored whole.
+  const masked = maskSecrets(patch);
+  const truncated = masked.length > MAX_DIFF_CHARS;
   return {
     path: absPath,
     relPath,
-    unifiedDiff: maskSecrets(truncated ? `${patch.slice(0, MAX_DIFF_CHARS)}\n… (생략됨)` : patch),
+    unifiedDiff: truncated ? `${masked.slice(0, MAX_DIFF_CHARS)}\n… (생략됨)` : masked,
     additions,
     deletions,
     truncated,
@@ -97,10 +100,7 @@ export class ChangeTracker {
   async captureBefore(sessionId: string, absPath: string, relPath: string): Promise<void> {
     const map = this.#sessionMap(sessionId);
     if (map.has(relPath)) return; // keep the original pre-session content
-    const before = await readFile(absPath, 'utf8').catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return null;
-      throw error;
-    });
+    const before = await readSnapshot(absPath);
     map.set(relPath, { relPath, absPath, before, after: null });
   }
 
@@ -108,10 +108,7 @@ export class ChangeTracker {
   async recordAfter(sessionId: string, absPath: string, relPath: string): Promise<FileChangeSummary> {
     const map = this.#sessionMap(sessionId);
     const snapshot = map.get(relPath) ?? { relPath, absPath, before: null, after: null };
-    const after = await readFile(absPath, 'utf8').catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return null;
-      throw error;
-    });
+    const after = await readSnapshot(absPath);
     snapshot.after = after;
     map.set(relPath, snapshot);
 
@@ -259,6 +256,22 @@ function unquoteGitCString(inner: string): string {
     index += octal.length;
   }
   return Buffer.from(bytes).toString('utf8');
+}
+
+/**
+ * Snapshot content for the revert/diff tracker. A file bigger than the inline
+ * limit is not snapshotted at all: holding it in memory is what an agent writing
+ * a multi-gigabyte log would use to stall the main process.
+ */
+async function readSnapshot(absPath: string): Promise<string | null> {
+  try {
+    const info = await stat(absPath);
+    if (!info.isFile() || info.size > MAX_INLINE_FILE_BYTES) return null;
+    return await readFile(absPath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    return null;
+  }
 }
 
 export type GitDiffScope = 'working' | 'staged' | 'branch';

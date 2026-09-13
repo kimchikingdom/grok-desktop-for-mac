@@ -28,6 +28,17 @@ export function grantKeyFor(kind: ToolKind, specifier?: string): string {
   return specifier ? `tool:${kind}:${specifier}` : `tool:${kind}`;
 }
 
+/** Sensitive files named directly in a command line, e.g. `cat .env`. */
+function sensitiveCommandReasons(command: string): string[] {
+  const reasons = new Set<string>();
+  for (const token of command.split(/[\s"'=|;&()<>]+/)) {
+    if (!token || token.startsWith('-')) continue;
+    if (!/[./]/.test(token)) continue;
+    for (const reason of classifySensitivity(token).reasons) reasons.add(reason);
+  }
+  return [...reasons];
+}
+
 const MUTATING_KINDS: ToolKind[] = ['edit', 'delete', 'move', 'execute', 'fetch', 'other'];
 
 /**
@@ -89,6 +100,13 @@ export function evaluatePermission(input: EvaluationInput): PermissionEvaluation
     risk = higher(risk, classification.risk);
     alwaysAsk = alwaysAsk || classification.alwaysAsk;
     reasons.push(...classification.reasons);
+    // `cat .env` reads a credential file just as much as fs/read_text_file does,
+    // but only the latter carried a location for the sensitivity check above.
+    for (const reason of sensitiveCommandReasons(input.command ?? '')) {
+      risk = higher(risk, 'high');
+      alwaysAsk = true;
+      if (!reasons.includes(reason)) reasons.push(reason);
+    }
     grantKey = grantKeyFor('execute', commandGrantKey(input.command ?? ''));
   } else if (input.kind === 'delete') {
     risk = higher(risk, 'high');

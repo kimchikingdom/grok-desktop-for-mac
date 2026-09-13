@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSensitivePath } from './sensitive.js';
+import { isSensitivePath, looksExecutable } from './sensitive.js';
 
 describe('isSensitivePath', () => {
   it('flags env, direnv, and grok credential files', () => {
@@ -29,5 +29,19 @@ describe('Git 내부 디렉터리', () => {
     expect(isSensitivePath('.gitattributes')).toBe(false);
     expect(isSensitivePath('.github/workflows/ci.yml')).toBe(false);
     expect(isSensitivePath('src/.gitkeep')).toBe(false);
+  });
+})
+
+describe('looksExecutable', () => {
+  it('OS 가 실행해 버리는 것들을 알아본다', () => {
+    for (const p of ['run.command', 'Setup.app', 'a/b/install.sh', 'x.scpt', 'y.pkg', 'z.EXE']) {
+      expect(looksExecutable(p), p).toBe(true);
+    }
+  });
+
+  it('평범한 파일은 열 수 있다', () => {
+    for (const p of ['README.md', 'src/app.ts', 'notes.txt', 'image.png', 'Makefile']) {
+      expect(looksExecutable(p), p).toBe(false);
+    }
   });
 })

@@ -634,7 +634,9 @@ export class SessionManager {
     }
     const record = this.store.getSession(session.id);
     if (record && record.title === session.workspace.displayName) {
-      this.store.updateSession(session.id, { title: titleFromPrompt(input.text) });
+      // The title is the user's own first words, which sometimes carry a pasted
+      // key, and it lands in metadata.json.
+      this.store.updateSession(session.id, { title: maskSecrets(titleFromPrompt(input.text)) });
       this.#publishSummary(session.id);
     }
     void this.#flush(session);

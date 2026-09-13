@@ -118,3 +118,33 @@ describe('evaluatePermission', () => {
     expect(result.decision).toBe('ask');
   });
 });
+
+describe('명령 인자에 든 민감 파일', () => {
+  const ask = (command: string) =>
+    evaluatePermission({
+      profile: 'ask',
+      kind: 'execute',
+      locations: [],
+      command,
+      sessionGrants: new Set(),
+    });
+
+  it('셸로 자격 증명 파일을 읽으려 하면 항상 확인한다', () => {
+    // fs/read_text_file on .env is flagged by the location check; going through
+    // the shell used to skip it entirely.
+    const verdict = ask('cat .env');
+    expect(verdict.alwaysAsk).toBe(true);
+    expect(verdict.risk).toBe('high');
+    expect(verdict.reasons.join(' ')).toContain('환경변수');
+  });
+
+  it('키 디렉터리도 잡는다', () => {
+    expect(ask('ls ~/.ssh/id_rsa').alwaysAsk).toBe(true);
+  });
+
+  it('평범한 명령은 그대로 둔다', () => {
+    const verdict = ask('cat README.md');
+    expect(verdict.alwaysAsk).toBe(false);
+    expect(verdict.risk).toBe('low');
+  });
+})

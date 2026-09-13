@@ -1,4 +1,4 @@
-import { appendFile, chmod, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, chmod, mkdir, readFile, rename, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { maskSecrets } from '@grok-desktop/security';
 
@@ -7,6 +7,9 @@ type Level = 'debug' | 'info' | 'warn' | 'error' | 'security';
 let logDirectory: string | null = null;
 let queue: Promise<void> = Promise.resolve();
 let permissionsAsserted = false;
+
+/** Rotate at this size so agent stderr cannot fill the disk over time. */
+const MAX_LOG_BYTES = 5 * 1024 * 1024;
 
 export function configureLogger(directory: string): void {
   logDirectory = directory;
@@ -32,6 +35,12 @@ function write(level: Level, message: string, context?: Record<string, unknown>)
     .then(async () => {
       await mkdir(directory, { recursive: true, mode: 0o700 });
       const file = path.join(directory, 'grok-desktop.log');
+      const size = await stat(file).then((info) => info.size).catch(() => 0);
+      if (size > MAX_LOG_BYTES) {
+        // One generation is enough to diagnose a crash; more would just be disk.
+        await rename(file, `${file}.1`).catch(() => undefined);
+        permissionsAsserted = false;
+      }
       await appendFile(file, `${line}\n`, { encoding: 'utf8', mode: 0o600 });
       // `mode` only applies when appendFile creates the file, so a log that
       // already exists keeps whatever the umask gave it. Re-assert it once per

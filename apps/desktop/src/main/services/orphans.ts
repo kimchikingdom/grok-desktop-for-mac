@@ -95,14 +95,17 @@ export async function isGrokProcess(pid: number): Promise<boolean> {
         { timeout: 3_000, env: sanitizeEnvironment(process.env) },
       );
       const command = stdout.trim();
-      return /grok/i.test(command) && /agent/i.test(command);
+      return /grok/i.test(command) && /agent/i.test(command) && /stdio/i.test(command);
     }
     const { stdout } = await execFileAsync('ps', ['-o', 'command=', '-p', String(pid)], {
       timeout: 3_000,
       env: sanitizeEnvironment(process.env),
     });
     const command = stdout.trim();
-    return command.includes('grok') && command.includes('agent');
+    // `agent stdio` is the only shape this app spawns. Without the last check a
+    // recycled PID belonging to the user's own interactive `grok` would be
+    // killed as if it were our leftover.
+    return command.includes('grok') && command.includes('agent') && command.includes('stdio');
   } catch {
     return false;
   }

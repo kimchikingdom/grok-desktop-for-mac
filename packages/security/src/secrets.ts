@@ -16,10 +16,26 @@ const RULES: MaskRule[] = [
   { label: 'npm-token', pattern: /\bnpm_[A-Za-z0-9]{30,}/g },
   { label: 'jwt', pattern: /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}/g },
   { label: 'bearer-token', pattern: /\b(?:Bearer|Basic)\s+([A-Za-z0-9._~+/=-]{12,})/gi, group: 1 },
+  { label: 'github-fine-grained', pattern: /\bgithub_pat_[A-Za-z0-9_]{20,}/g },
+  { label: 'gitlab-token', pattern: /\bglpat-[A-Za-z0-9_-]{16,}/g },
+  { label: 'stripe-key', pattern: /\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}/g },
+  { label: 'google-oauth', pattern: /\b(?:ya29|1\/\/)[A-Za-z0-9_-]{20,}/g },
+  { label: 'slack-webhook', pattern: /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/+]{20,}/g },
+  { label: 'anthropic-key', pattern: /\bsk-ant-[A-Za-z0-9_-]{16,}/g },
   {
     label: 'env-secret',
+    // The `"?` catches the JSON spelling, where a quote sits between the key and
+    // the colon: `"API_TOKEN": "…"`.
     pattern:
-      /\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|APIKEY|API_KEY|ACCESS_KEY|PRIVATE_KEY|CREDENTIAL|SESSION)[A-Z0-9_]*)\s*[:=]\s*["']?([^\s"';,]{4,})/g,
+      /\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|APIKEY|API_KEY|ACCESS_KEY|PRIVATE_KEY|CREDENTIAL|SESSION)[A-Z0-9_]*)"?\s*[:=]\s*["']?([^\s"';,]{4,})/g,
+    group: 2,
+  },
+  {
+    label: 'json-secret',
+    // Same idea for lowercase and camelCase JSON keys. `session` is left out of
+    // this one: lowercase `session:` shows up constantly in ordinary logs.
+    pattern:
+      /"([A-Za-z0-9_-]*(?:token|secret|password|passwd|api[_-]?key|access[_-]?key|private[_-]?key|credential)[A-Za-z0-9_-]*)"\s*:\s*"([^"]{4,})"/gi,
     group: 2,
   },
 ];

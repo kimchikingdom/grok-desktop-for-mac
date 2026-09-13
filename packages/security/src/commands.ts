@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { RiskLevel } from '@grok-desktop/shared';
 
 export type CommandCategory =
@@ -311,6 +312,12 @@ export function commandHead(command: string): string {
 
 /** Session grants must match the exact command, not just the binary name. */
 export function commandGrantKey(command: string): string {
-  const normalised = command.replace(/\s+/g, ' ').trim().slice(0, 400);
-  return normalised || commandHead(command);
+  const normalised = command.replace(/\s+/g, ' ').trim();
+  if (!normalised) return commandHead(command);
+  if (normalised.length <= 400) return normalised;
+  // Truncating alone would let two different long commands share one grant:
+  // approve the first and the second runs without a card. The digest keeps the
+  // key readable while still binding it to the whole command.
+  const digest = createHash('sha256').update(normalised).digest('hex').slice(0, 16);
+  return `${normalised.slice(0, 400)}#${digest}`;
 }

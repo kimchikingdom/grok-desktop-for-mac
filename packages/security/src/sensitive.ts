@@ -72,6 +72,25 @@ export function isIgnoredDirectory(name: string): boolean {
   return IGNORED_DIRECTORIES.has(name);
 }
 
+/**
+ * Handing these to the OS "open" handler runs them. The app opens files the user
+ * clicks in its own tree, and an agent can put a file there, so the two together
+ * would be a way to execute code with one innocuous-looking click.
+ */
+const EXECUTABLE_EXTENSIONS = new Set([
+  '.app', '.command', '.sh', '.bash', '.zsh', '.fish', '.ksh',
+  '.scpt', '.applescript', '.workflow', '.terminal', '.tool',
+  '.pkg', '.mpkg', '.dmg', '.jar', '.exe', '.bat', '.cmd', '.ps1', '.msi', '.scr',
+]);
+
+export function looksExecutable(targetPath: string): boolean {
+  const normalized = targetPath.split(path.sep).join('/').toLowerCase();
+  const base = normalized.split('/').pop() ?? normalized;
+  const dot = base.lastIndexOf('.');
+  if (dot === -1) return false;
+  return EXECUTABLE_EXTENSIONS.has(base.slice(dot));
+}
+
 const BINARY_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.icns', '.bmp', '.tiff',
   '.pdf', '.zip', '.gz', '.tar', '.bz2', '.7z', '.rar', '.dmg', '.pkg',

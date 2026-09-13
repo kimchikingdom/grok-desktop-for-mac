@@ -1,6 +1,6 @@
 import { dialog, ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import type { ZodType } from 'zod';
-import { PathEscapeError, assertSafeExternalUrl, resolveWithinRoot } from '@grok-desktop/security';
+import { PathEscapeError, assertSafeExternalUrl, looksExecutable, resolveWithinRoot } from '@grok-desktop/security';
 import {
   IpcChannels,
   cancelInput,
@@ -238,6 +238,10 @@ export function registerIpcHandlers(context: IpcContext): void {
     const workspace = store.getWorkspace(input.workspaceId);
     if (!workspace) throw new Error('작업공간을 찾을 수 없습니다.');
     const resolved = await resolveWithinRoot(workspace.canonicalRootPath, input.relPath);
+    if (looksExecutable(resolved.relPath)) {
+      logger.security('실행 가능한 파일 열기를 거부했습니다.', { relPath: resolved.relPath });
+      throw new Error('실행될 수 있는 파일은 앱에서 열지 않습니다. Finder에서 확인해 주세요.');
+    }
     const error = await shell.openPath(resolved.canonicalPath);
     if (error) throw new Error(`이 파일을 열지 못했습니다: ${error}`);
     return undefined;

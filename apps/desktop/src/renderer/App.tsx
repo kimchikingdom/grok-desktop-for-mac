@@ -347,9 +347,13 @@ export function App(): React.JSX.Element {
               !state.mediaLightbox &&
               state.status === 'waiting-approval'
             ) {
-              const pending = [...state.items]
-                .reverse()
-                .find((item) => item.kind === 'permission' && !item.decision);
+              // With two requests open at once the shortcut would answer the
+              // newest, which is not necessarily the card being read. Ambiguity
+              // here decides someone's files, so it falls back to clicking.
+              const undecided = state.items.filter(
+                (item) => item.kind === 'permission' && !item.decision,
+              );
+              const pending = undecided.length === 1 ? undecided[0] : undefined;
               if (pending && pending.kind === 'permission') {
                 if (key === 'y') {
                   event.preventDefault();

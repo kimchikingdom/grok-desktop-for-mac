@@ -40,3 +40,33 @@ describe('maskSecrets', () => {
     expect(JSON.stringify(masked)).toContain('[redacted:github-token]');
   });
 });
+
+describe('놓치던 형태', () => {
+  it('JSON 으로 적힌 비밀도 가린다', () => {
+    expect(maskSecrets('{"API_TOKEN": "supersecretvalue123"}')).not.toContain('supersecretvalue123');
+    expect(maskSecrets('{"apiKey":"supersecretvalue123"}')).not.toContain('supersecretvalue123');
+    expect(maskSecrets('{"databasePassword": "hunter2hunter2"}')).not.toContain('hunter2hunter2');
+  });
+
+  it('최근 자격증명 포맷을 안다', () => {
+    // Assembled from pieces on purpose: a literal of the right shape trips
+    // GitHub's push protection, even though these are made up.
+    const body = 'ABCDEFGHIJKLMNOPQRSTUVWX';
+    const samples = [
+      `github${'_'}pat${'_'}11${body}0aBcDe`,
+      `glpat${'-'}${body}`,
+      `sk${'_'}live${'_'}${body}`,
+      `sk${'-'}ant${'-'}api03${'-'}${body}`,
+      `https://hooks.slack.com/${'services'}/T00000000/B00000000/${body}`,
+    ];
+    for (const sample of samples) {
+      expect(maskSecrets(`값: ${sample}`), sample).not.toContain(sample);
+    }
+  });
+
+  it('평범한 로그 문장은 그대로 둔다', () => {
+    const line = '세션을 시작했습니다. sessionId: 01a0012e-e1c0-7c52';
+    expect(maskSecrets(line)).toBe(line);
+    expect(maskSecrets('git status 를 실행합니다')).toBe('git status 를 실행합니다');
+  });
+})

@@ -258,10 +258,14 @@ export class GrokAgentConnection extends EventEmitter {
     prompt: string | Array<{ type: 'text'; text: string } | { type: 'image'; mimeType?: string; data?: string }>,
   ): Promise<string> {
     const blocks = typeof prompt === 'string' ? [{ type: 'text' as const, text: prompt }] : prompt;
-    const raw = await this.#requirePeer().request(AcpMethods.prompt, {
-      sessionId,
-      prompt: blocks,
-    });
+    // No client-side timeout: a turn runs until the agent answers, and the user
+    // sitting on an approval card is a normal part of that. Cancellation is
+    // explicit (session/cancel) and a dead child is caught by the exit handler.
+    const raw = await this.#requirePeer().request(
+      AcpMethods.prompt,
+      { sessionId, prompt: blocks },
+      { timeoutMs: 0 },
+    );
     const parsed = promptResultSchema.safeParse(raw);
     return parsed.success ? (parsed.data.stopReason ?? 'end_turn') : 'end_turn';
   }
