@@ -93,6 +93,22 @@ renderer가 손상되어도 얻을 수 있는 최대 권한은 `packages/shared/
 - **작업공간 루트.** 홈은 막으면서 홈들이 모인 `/Users`·`/home` 은 경고 없이 열렸다. 이제 막고, 다른 사용자의 홈은 확인을 받는다.
 - **자식 stderr.** 줄바꿈 없는 출력이 버퍼를 무한히 키웠다 (그 내용은 비밀 마스커를 통과한다). 줄 길이와 버퍼에 상한을 뒀다.
 
+## 6.3 배포 바이너리 하드닝 (2026-09-13)
+
+Electron 은 몇 가지 스위치를 기본으로 켠 채 배포된다. 그중 `RunAsNode` 는 서명된 앱을 범용 스크립트 실행기로 만든다 — 실측으로 확인했다.
+
+```
+ELECTRON_RUN_AS_NODE=1 "Grok Desktop" -e "console.log(process.version)"
+→ v24.18.1            (fuse 적용 전)
+→ (출력 없음)          (적용 후)
+```
+
+서명·공증을 마치면 이 바이너리는 사용자가 허용한 TCC 권한을 가진 신뢰된 실행 파일이 된다. 그 신원으로 임의 코드가 돌 수 있다는 뜻이라, `runAsNode`·`enableNodeOptionsEnvironmentVariable`·`enableNodeCliInspectArguments` 를 끄고 `enableCookieEncryption` 을 켠다.
+
+asar 무결성 fuse 두 개(`enableEmbeddedAsarIntegrityValidation`, `onlyLoadAppFromAsar`)는 서명이 있어야 동작하므로 서명 단계에서 함께 켠다. [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) 3절에 조건과 확인 방법을 적어 뒀다.
+
+fuse 를 뒤집으면 바이너리가 다시 쓰여 기존 서명이 깨지고, Apple 실리콘에서는 커널이 프로세스를 그대로 죽인다(exit 137). `build/after-pack.cjs` 가 `afterSign` 단계에서 ad-hoc 재서명을 해 미서명 로컬 빌드도 기동하게 한다. 인증서가 주입돼 있으면 이 훅은 동작하지 않는다.
+
 ## 7. 아직 남은 위험
 
 - **CLI 자체의 자동 승인**: `~/.grok/config.toml` 의 `[ui] permission_mode` 가 `always-approve` 같은 값이면 CLI 가 자기 도구를 스스로 승인하고 앱에 `session/request_permission` 을 보내지 않는다. 그러면 CLI 가 직접 실행하는 셸 명령은 승인 카드를 거치지 않는다 (ACP `fs/write_text_file` 로 오는 파일 쓰기는 앱이 여전히 가로챈다). `grok agent stdio` 에는 이를 무시하고 매번 묻게 하는 플래그가 없어서, 앱은 설정을 읽어 헤더에 「CLI 자동 승인」으로 경고만 한다.

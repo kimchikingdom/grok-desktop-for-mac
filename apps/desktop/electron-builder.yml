@@ -4,11 +4,25 @@ copyright: Grok Desktop contributors
 directories:
   output: release
   buildResources: build
+afterSign: build/after-pack.cjs
 files:
   - out/**/*
   - package.json
 # Everything is bundled into out/, so no node_modules are shipped.
 asar: true
+# Electron ships these switches on by default, which turns a signed app into a
+# general-purpose script runner: ELECTRON_RUN_AS_NODE=1 "Grok Desktop" -e '…'
+# executes arbitrary code under this app's identity and its granted TCC
+# permissions. Nothing here needs them.
+# enableEmbeddedAsarIntegrityValidation and onlyLoadAppFromAsar belong here too,
+# but on macOS they need a real signature to validate against: an unsigned build
+# with them on exits silently at startup. They go on together with the signing
+# identity — see RELEASE_CHECKLIST.md.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
 mac:
   category: public.app-category.developer-tools
   target:

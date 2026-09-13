@@ -8,3 +8,11 @@ allowBuilds:
   esbuild: true
   electron: true
   electron-winstaller: false
+
+# Build-tool transitives with published security fixes. None of these ship in the
+# app — `dependencies` is empty and out/ bundles only app code — but they do run
+# while packaging, so they are pinned forward instead of left behind.
+overrides:
+  '@xmldom/xmldom': '^0.8.15'
+  fast-uri: '^3.1.6'
+  js-yaml@>=4.0.0: '^4.3.2'

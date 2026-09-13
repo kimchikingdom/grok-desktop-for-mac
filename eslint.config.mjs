@@ -47,6 +47,15 @@ export default tseslint.config(
     rules: { '@typescript-eslint/no-explicit-any': 'off' },
   },
   {
+    // electron-builder loads its hooks as CommonJS from the packaging process.
+    files: ['apps/desktop/build/**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { require: 'readonly', module: 'writable', exports: 'writable', process: 'readonly', console: 'readonly' },
+    },
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
+  {
     // Plain Node ESM helpers that are not part of the TypeScript program.
     files: ['tests/fixtures/**/*.mjs', 'scripts/**/*.mjs'],
     languageOptions: {

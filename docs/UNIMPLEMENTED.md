@@ -89,6 +89,21 @@
 
 **데이터 폴더 이름.** `productName` 을 넣어 `~/Library/Application Support/Grok Desktop/` 을 쓴다. 패키지 이름(`@grok-desktop/desktop`)은 워크스페이스 신원으로 그대로 남는다. 첫 실행 때 예전 폴더의 `metadata.json`·`sessions`·`overlays`·`logs`·`agent-pids.json` 을 옮기고, 이미 새 위치에 있는 것은 덮어쓰지 않으며, 예전 폴더는 지우지 않는다. 실제 앱에서 세션 17개가 그대로 넘어오는 것을 확인했다.
 
+### 의존성과 배포 바이너리 (2026-09-13)
+
+**의존성.** `pnpm audit` 이 15건(high 11, moderate 4)을 내놨는데 전부 dev 전용이었다 — electron-builder 와 vitest 의 전이 의존성이고, 앱 번들에는 하나도 들어가지 않는다(`dependencies` 는 비어 있고 `out/` 에는 앱 코드만 들어간다). 그래도 패키징 중에 실행되는 코드라 앞으로 당겼다: vitest 4.1.11, 그리고 `pnpm-workspace.yaml` 의 `overrides` 로 `@xmldom/xmldom ^0.8.15`, `fast-uri ^3.1.6`, `js-yaml ^4.3.2`. 지금 권고 0건이다.
+
+범위를 `^` 로 묶은 이유가 있다. 처음에 `>=` 로 뒀더니 xmldom 0.9, fast-uri 4, js-yaml 5 로 메이저가 올라가 electron-builder 가 기대하는 API 를 벗어났다. 또 pnpm 11 은 `package.json` 의 `pnpm.overrides` 를 더 이상 읽지 않는다 — `pnpm-workspace.yaml` 로 옮겨야 적용된다.
+
+**Electron fuses.** 기본 상태의 배포 바이너리는 `ELECTRON_RUN_AS_NODE=1` 로 임의 코드를 실행한다(실측: `process.version` 이 찍혔다). 서명 후라면 신뢰된 신원으로 남의 코드가 도는 셈이라 `runAsNode`·`enableNodeOptionsEnvironmentVariable`·`enableNodeCliInspectArguments` 를 끄고 `enableCookieEncryption` 을 켰다. 적용 후 같은 명령은 아무 출력도 내지 않는다.
+
+두 가지를 배우고 반영했다.
+
+- asar 무결성 fuse 두 개는 **서명이 있어야** 켤 수 있다. 미서명 빌드에서 켜면 앱이 기동하자마자 조용히 종료된다. 서명 단계 항목으로 옮겼다.
+- fuse 는 바이너리를 다시 쓰므로 기존 서명이 깨지고, Apple 실리콘에서는 커널이 프로세스를 죽인다(exit 137). `build/after-pack.cjs` 가 `afterSign` 단계에서 ad-hoc 재서명을 한다. 인증서가 주입돼 있으면 이 훅은 아무것도 하지 않는다.
+
+패키징본을 다시 띄워 UI 렌더링, 렌더러 격리, CSP 차단이 모두 유지되는 것을 확인했다.
+
 ---
 
 ## 앱 범위에서 끝난 것

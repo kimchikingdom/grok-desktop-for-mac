@@ -30,6 +30,14 @@ Phase 7(배포)에서 사용한다. Phase 1–5 구현 시점에는 서명·공�
 
 - [x] 자체 제작 앱 아이콘 준비 (`build/icon.icns` 10종·최대 1024 / `build/icon.ico` 7프레임·256 포함). 자체 제작 `src/renderer/assets/app-icon.svg`에서 변환했다. 타사 로고는 쓰지 않았다.
 - [ ] `CSC_LINK` / `CSC_KEY_PASSWORD` 로 Developer ID Application 인증서 주입
+- [ ] 서명과 함께 asar 무결성 fuse 켜기 — `electron-builder.yml` 의 `electronFuses` 에 다음 두 줄을 더한다.
+
+      ```yaml
+      enableEmbeddedAsarIntegrityValidation: true
+      onlyLoadAppFromAsar: true
+      ```
+
+      미서명 빌드에서는 켤 수 없다. 검증할 서명이 없어 앱이 기동하자마자 조용히 종료된다 (실측 확인). 서명 빌드에서 켠 뒤 반드시 앱이 뜨는지 확인할 것. fuse 는 바이너리를 다시 쓰므로 기존 서명이 깨지는데, `build/after-pack.cjs` 가 `afterSign` 단계에서 ad-hoc 재서명을 한다 — 인증서가 있으면(`CSC_LINK`/`CSC_NAME`) 이 훅은 아무것도 하지 않으므로 Developer ID 서명이 그대로 남는다
 - [x] `hardenedRuntime: true` 유지, `entitlements.mac.plist` 검토 — 설정은 그대로. 서명이 없으면 entitlement 는 실제로 적용되지 않는다
 - [x] `pnpm package:mac` — arm64·x64 DMG 생성 확인 (각 ~120MB). 번들 아이콘이 `build/icon.icns` 와 바이트 동일, `CFBundleIdentifier=io.github.kimchikingdom.grokdesktop`, `CFBundleName=Grok Desktop`
 - [ ] `codesign --verify --deep --strict --verbose=2 "release/mac-arm64/Grok Desktop.app"` — 지금은 실패한다 (`code has no resources but signature indicates they must be present`). 유효한 Developer ID 인증서가 없어 electron-builder 가 서명을 건너뛴다
