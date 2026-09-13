@@ -3,6 +3,7 @@
   "productName": "Grok Desktop",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Grok Desktop — local agent workspace for the Grok Build CLI",
   "main": "./out/main/index.js",
   "scripts": {

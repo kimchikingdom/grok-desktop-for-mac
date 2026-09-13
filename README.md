@@ -172,11 +172,18 @@ This project was written with three AI coding agents working on the same codebas
 Commits carry `Co-authored-by:` trailers for the agents involved in that particular change.
 None of these vendors are affiliated with this project.
 
+## Contributing
+
+Issues and pull requests are welcome. Before opening a PR, run `pnpm verify` (lint, typecheck, unit
+and security tests) and `pnpm test:e2e`. Security-relevant changes should come with a test — the
+approval gate, path containment and secret masking all have suites to extend under
+`packages/security` and `tests/security`.
+
 ## License
 
-No license is granted (all rights reserved). The source is published for reading and review only;
-copying, modifying, redistributing, or commercial use are not permitted. Open an issue if you would
-like to use it for something.
+[MIT](LICENSE). Use it, change it, ship it — keep the copyright notice.
 
-This app only launches a Grok Build CLI that you installed yourself; it does not redistribute the
-CLI or any xAI service. Your use of the CLI and of xAI services is governed by their own terms.
+The licence covers this app's own source. It grants no rights to the "Grok" or "xAI" names or
+marks: if you publish a fork, give it your own name and icon. This app only launches a Grok Build
+CLI that you installed yourself; it does not redistribute the CLI or any xAI service. Your use of
+the CLI and of xAI services is governed by their own terms.
