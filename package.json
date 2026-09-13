@@ -9,6 +9,7 @@
     "node": ">=22.11.0"
   },
   "scripts": {
+    "postinstall": "node scripts/ensure-electron.mjs",
     "dev": "pnpm --filter @grok-desktop/desktop dev",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",

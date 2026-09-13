@@ -2,8 +2,9 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
-# esbuild needs its postinstall to place the platform binary; the Windows
-# installer builder is not used on this machine.
+# esbuild places its platform binary from an install script. Electron is handled
+# by the root postinstall instead: its published package declares no script for
+# pnpm to run, so a fresh clone would otherwise have no Electron binary at all.
 allowBuilds:
   esbuild: true
   electron: true

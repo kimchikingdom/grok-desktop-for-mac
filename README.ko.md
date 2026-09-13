@@ -33,7 +33,7 @@ grok login
 ## 개발
 
 ```bash
-pnpm install
+pnpm install   # Electron 바이너리도 함께 받습니다 (scripts/ensure-electron.mjs)
 pnpm dev
 ```
 

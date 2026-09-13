@@ -52,7 +52,7 @@ CLI that drops ACP protocol 1 would break it.
 ## Development
 
 ```bash
-pnpm install
+pnpm install   # also fetches the Electron binary (see scripts/ensure-electron.mjs)
 pnpm dev
 ```
 
